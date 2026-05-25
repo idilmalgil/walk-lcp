@@ -1,0 +1,22 @@
+# Walk-LCP — Conda environment for the standalone version (walk_lcp.py)
+#
+# Create with:   conda env create -f environment.yml
+# Activate with: conda activate walk-lcp
+#
+# This is the recommended install route because GDAL binaries from
+# conda-forge are reliable on all major platforms.
+
+name: walk-lcp
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy=1.26.4
+  - gdal=3.8.4
+  - geopandas=0.14.3
+  - shapely=2.0.3
+  - fiona=1.9.6
+  - pyproj=3.6.1
+  - matplotlib=3.8.3
+  - jupyter=1.0.0
+  - pytest=8.1.1

@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Geo outputs (don't commit derived data)
+*.gpkg-shm
+*.gpkg-wal
+
+# QGIS scratch
+*.qgz~
+
+# Run outputs (keep code, exclude results)
+output/
+results/
+*_manifest.json
+cum_walk_time_start_*.tif

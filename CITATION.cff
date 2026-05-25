@@ -1,0 +1,74 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite both the manuscript and this software as below."
+
+title: "Walk-LCP: Least-cost walking paths over a DEM with Tobler's hiking function"
+version: 1.0.0
+date-released: "[FILL: YYYY-MM-DD]"
+license: MIT
+type: software
+repository-code: "[FILL: e.g. https://github.com/yourname/walk-lcp]"
+url: "[FILL: project URL or DOI link]"
+
+authors:
+  - family-names: "[FILL: family name]"
+    given-names: "[FILL: given name]"
+    orcid: "[FILL: https://orcid.org/0000-0000-0000-0000]"
+    affiliation: "[FILL: affiliation]"
+    email: "[FILL: contact email]"
+
+abstract: >
+  Walk-LCP computes least-cost walking paths and travel times across a
+  digital elevation model using Dijkstra's algorithm with edge costs
+  derived from Tobler's hiking function. The package is provided as a
+  reproducibility companion to a journal manuscript and supports both
+  standalone (Python + GDAL + GeoPandas) and QGIS-bound execution.
+
+keywords:
+  - least-cost path
+  - Tobler hiking function
+  - Dijkstra
+  - GIS
+  - digital elevation model
+  - landscape archaeology
+  - reproducibility
+
+preferred-citation:
+  type: article
+  title: "[FILL: manuscript title]"
+  authors:
+    - family-names: "[FILL]"
+      given-names: "[FILL]"
+  journal: "[FILL]"
+  year: [FILL]
+  volume: "[FILL]"
+  issue: "[FILL]"
+  start: [FILL]
+  end: [FILL]
+  doi: "[FILL: 10.xxxx/xxxxx]"
+
+references:
+  - type: report
+    title: "Three Presentations on Geographical Analysis and Modeling"
+    authors:
+      - family-names: Tobler
+        given-names: Waldo
+    institution:
+      name: National Center for Geographic Information and Analysis
+    number: "93-1"
+    year: 1993
+    location:
+      city: Santa Barbara
+      region: California
+      country: US
+
+  - type: article
+    title: "A note on two problems in connexion with graphs"
+    authors:
+      - family-names: Dijkstra
+        given-names: "Edsger W."
+    journal: "Numerische Mathematik"
+    volume: 1
+    year: 1959
+    start: 269
+    end: 271
+    doi: 10.1007/BF01386390
