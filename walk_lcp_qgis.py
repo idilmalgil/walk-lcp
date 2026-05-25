@@ -15,7 +15,7 @@ For journal verification we recommend running the standalone version
 (``walk_lcp.py``) since it does not require a QGIS install. This file is
 provided for users who already work in QGIS and want a one-click run.
 
-Author      : [FILL: your name]
+Author      : Idil Malgil
 License     : MIT (see LICENSE)
 """
 

@@ -3,18 +3,19 @@ message: "If you use this software, please cite both the manuscript and this sof
 
 title: "Walk-LCP: Least-cost walking paths over a DEM with Tobler's hiking function"
 version: 1.0.0
-date-released: "[FILL: YYYY-MM-DD]"
+date-released: 2026-05-25
 license: MIT
 type: software
 repository-code: "[FILL: e.g. https://github.com/yourname/walk-lcp]"
 url: "[FILL: project URL or DOI link]"
 
 authors:
-  - family-names: "[FILL: family name]"
-    given-names: "[FILL: given name]"
-    orcid: "[FILL: https://orcid.org/0000-0000-0000-0000]"
-    affiliation: "[FILL: affiliation]"
-    email: "[FILL: contact email]"
+  - family-names: Malgil
+    given-names: Idil
+    orcid: https://orcid.org/0000-0002-4406-3295
+    affiliation: HSE University, Moscow
+    email: idilmalgil@gmail.com
+
 
 abstract: >
   Walk-LCP computes least-cost walking paths and travel times across a
@@ -33,18 +34,18 @@ keywords:
   - reproducibility
 
 preferred-citation:
-  type: article
-  title: "[FILL: manuscript title]"
+  type: 
+  title: 
   authors:
-    - family-names: "[FILL]"
-      given-names: "[FILL]"
-  journal: "[FILL]"
-  year: [FILL]
-  volume: "[FILL]"
-  issue: "[FILL]"
-  start: [FILL]
-  end: [FILL]
-  doi: "[FILL: 10.xxxx/xxxxx]"
+    - family-names: 
+      given-names: 
+  journal: 
+  year: 
+  volume: 
+  issue: 
+  start:
+  end: 
+  doi: 
 
 references:
   - type: report

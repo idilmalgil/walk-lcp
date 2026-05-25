@@ -45,9 +45,9 @@ References
 - Dijkstra, E. W. (1959). A note on two problems in connexion with
   graphs. Numerische Mathematik 1: 269-271.
 
-Author      : [FILL: your name]
-Affiliation : [FILL: your institution]
-Contact     : [FILL: your email]
+Author      : Idil Malgil
+Affiliation : HSE University, Moscow
+Contact     : idilmalgil@gmail.com
 License     : MIT (see LICENSE)
 """
 
