@@ -5,8 +5,9 @@
 
 This repository is the reproducibility package for the analysis presented in:
 
-> \[FILL: full citation of your manuscript, e.g. Surname, F., Surname, F. (2026).
-> Title. \*Journal\*, vol(issue), pages. DOI:xxxxx]
+the article "LiDAR-Integrated GIS Modelling of Urban Thresholds and Extramural Funerary Landscapes at Parion" by Malgil and Tugrul which is under review.
+
+
 
 It computes least-cost walking paths (LCPs) and travel times across a digital
 elevation model (DEM) using Dijkstra's algorithm with edge costs derived from
@@ -19,16 +20,16 @@ points, the package returns the time-optimal walking route for every
 ## Contents
 
 ```
-walk\_lcp\_repro/
+walk\\\_lcp\\\_repro/
 ├── README.md              ← this file
 ├── LICENSE                ← MIT license
 ├── CITATION.cff           ← machine-readable citation
 ├── requirements.txt       ← pip dependencies (pinned)
 ├── environment.yml        ← conda environment specification
-├── walk\_lcp.py            ← STANDALONE script (recommended for review)
-├── walk\_lcp\_qgis.py       ← QGIS-runnable script (convenience)
-├── demo\_test\_run.ipynb    ← Jupyter notebook: full pipeline on synthetic data
-├── test\_walk\_lcp.py       ← unit tests
+├── walk\\\_lcp.py            ← STANDALONE script (recommended for review)
+├── walk\\\_lcp\\\_qgis.py       ← QGIS-runnable script (convenience)
+├── demo\\\_test\\\_run.ipynb    ← Jupyter notebook: full pipeline on synthetic data
+├── test\\\_walk\\\_lcp.py       ← unit tests
 └── .gitignore
 ```
 
@@ -51,7 +52,7 @@ Or using pip:
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate    # Windows: .venv\\Scripts\\activate
+source .venv/bin/activate    # Windows: .venv\\\\Scripts\\\\activate
 pip install -r requirements.txt
 ```
 
@@ -60,11 +61,11 @@ pip install -r requirements.txt
 ### 2\. Run the analysis
 
 ```bash
-python walk\_lcp.py \\
-    --dem    path/to/dem.tif \\
-    --start  path/to/start\_points.gpkg \\
-    --stop   path/to/stop\_points.gpkg \\
-    --output path/to/lcp\_all\_routes.gpkg \\
+python walk\\\_lcp.py \\\\
+    --dem    path/to/dem.tif \\\\
+    --start  path/to/start\\\_points.gpkg \\\\
+    --stop   path/to/stop\\\_points.gpkg \\\\
+    --output path/to/lcp\\\_all\\\_routes.gpkg \\\\
     --manifest path/to/manifest.json
 ```
 
@@ -95,14 +96,14 @@ software environment matches.
 
 ## Demo notebook (no real data required)
 
-`demo\_test\_run.ipynb` is a self-contained Jupyter notebook that exercises
+`demo\\\_test\\\_run.ipynb` is a self-contained Jupyter notebook that exercises
 the full pipeline on a small synthetic DEM (no GIS data needed). It is the
 fastest way for a reviewer to confirm the algorithm works on their machine
 before pointing it at the manuscript's real inputs.
 
 ```bash
 pip install matplotlib jupyter   # in addition to requirements.txt
-jupyter notebook demo\_test\_run.ipynb
+jupyter notebook demo\\\_test\\\_run.ipynb
 ```
 
 The notebook builds a 100 × 100 m DEM with a diagonal ridge and a gap,
@@ -134,7 +135,7 @@ All three layers must share the same CRS. The script does not reproject.
 
 |Output|Format|Contents|
 |-|-|-|
-|Routes|GeoPackage (recommended) or Shapefile|LineString features, one per (start, stop) pair, with attributes `route\_id`, `start\_id`, `stop\_id`, `dist\_m`, `time\_s`, `time\_min`, `time\_hr`.|
+|Routes|GeoPackage (recommended) or Shapefile|LineString features, one per (start, stop) pair, with attributes `route\\\_id`, `start\\\_id`, `stop\\\_id`, `dist\\\_m`, `time\\\_s`, `time\\\_min`, `time\\\_hr`.|
 |Cumulative time rasters (optional)|GeoTIFF|One per start point. Each pixel = travel time in seconds from that start. NoData = -9999.|
 |Manifest (optional)|JSON|Run metadata for reproducibility.|
 
@@ -147,18 +148,18 @@ from the elevation difference and pixel size:
 
 1. The DEM is rasterised into a grid graph with 8-connectivity (queen
 neighbourhood). Each cell connects to its eight neighbours.
-2. The **slope** along each edge is `(z\_target − z\_source) / horizontal\_distance`,
+2. The **slope** along each edge is `(z\\\_target − z\\\_source) / horizontal\\\_distance`,
 where horizontal\_distance is computed from the DEM's pixel size.
 3. The **walking speed** along that edge is given by Tobler's hiking function:
 
 ```
-   v(S) = 6 · exp(−3.5 · |S + 0.05|)        \[km/h]
+   v(S) = 6 · exp(−3.5 · |S + 0.05|)        \\\[km/h]
    ```
 
-   Peak speed (\~6 km/h) occurs at S = −0.05 (5 % downhill). Speed is
+Peak speed (\~6 km/h) occurs at S = −0.05 (5 % downhill). Speed is
 clamped to ≥ 0.01 m/s to avoid infinities.
 
-4. The **edge cost** is `horizontal\_distance / v`, in seconds.
+4. The **edge cost** is `horizontal\\\_distance / v`, in seconds.
 5. **Dijkstra's algorithm** is run from every start point. For each stop
 point, the time-optimal path is reconstructed using the predecessor
 array.
@@ -174,7 +175,7 @@ number of DEM cells.
    Run the unit tests:
 
    ```bash
-python -m pytest test\_walk\_lcp.py -v
+python -m pytest test\\\_walk\\\_lcp.py -v
 ```
 
    The tests cover:
@@ -190,7 +191,7 @@ python -m pytest test\_walk\_lcp.py -v
   ## QGIS alternative
 
   If you prefer to run inside QGIS rather than from a terminal, open
-`walk\_lcp\_qgis.py` in the QGIS Python Console / Script Editor, set the
+`walk\\\_lcp\\\_qgis.py` in the QGIS Python Console / Script Editor, set the
 four paths at the top of the file, and run it. The mathematics are
 identical to the standalone version.
 
@@ -223,7 +224,7 @@ Pinned exact versions used for the published results are in
 2. Place the files in the expected layout (see README in the data archive).
 3. Run the command above with the dataset paths.
 4. Compare the SHA-256 hashes in the produced manifest against those in
-`published\_manifest.json` (included in the data archive).
+`published\\\_manifest.json` (included in the data archive).
 
 ## 
 
@@ -239,8 +240,9 @@ LINK WILL BE PROVIDED*
 If you use this code, please cite both the manuscript and the software:
 
 ```
+Manuscript "LiDAR-Integrated GIS Modelling of Urban Thresholds and Extramural Funerary Landscapes at Parion" under editorial review at Archaeological Prospection
 
-ARTICLE WILL BE CITED
+
 ```
 
 A machine-readable citation is in `CITATION.cff`.

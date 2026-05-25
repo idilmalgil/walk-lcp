@@ -6,13 +6,13 @@ version: 1.0.0
 date-released: 2026-05-25
 license: MIT
 type: software
-repository-code: "[FILL: e.g. https://github.com/yourname/walk-lcp]"
-url: "[FILL: project URL or DOI link]"
+repository-code: "https://github.com/idilmalgil/walk-lcp"
+url: "https://doi.org/10.5281/zenodo.20381421"
 
 authors:
   - family-names: Malgil
     given-names: Idil
-    orcid: https://orcid.org/0000-0002-4406-3295
+    orcid: "https://orcid.org/0000-0002-4406-3295"
     affiliation: HSE University, Moscow
     email: idilmalgil@gmail.com
 
@@ -34,18 +34,17 @@ keywords:
   - reproducibility
 
 preferred-citation:
-  type: 
-  title: 
+  type: unpublished
+  title: "LiDAR-Integrated GIS Modelling of Urban Thresholds and Extramural Funerary Landscapes at Parion"
   authors:
-    - family-names: 
-      given-names: 
-  journal: 
-  year: 
-  volume: 
-  issue: 
-  start:
-  end: 
-  doi: 
+    - family-names: Malgil
+      given-names: Idil
+      orcid: "https://orcid.org/0000-0002-4406-3295"
+    - family-names: Tugrul
+      given-names: Sadık
+      orcid: "https://orcid.org/0000-0001-7737-7728"
+  year: 2026
+  notes: "Manuscript under review."
 
 references:
   - type: report
