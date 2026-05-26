@@ -61,12 +61,12 @@ pip install -r requirements.txt
 ### 2\. Run the analysis
 
 ```bash
-python walk\\\_lcp.py \\\\
-    --dem    path/to/dem.tif \\\\
-    --start  path/to/start\\\_points.gpkg \\\\
-    --stop   path/to/stop\\\_points.gpkg \\\\
-    --output path/to/lcp\\\_all\\\_routes.gpkg \\\\
-    --manifest path/to/manifest.json
+python walk_lcp.py \
+    --dem    02_processed/dem 04 Low Pass Filter.tif \
+    --start  03_gis_inputs/nodes_start.gpkg \
+    --stop   03_gis_inputs/nodes_stop.gpkg \
+    --output ./my_lcp_results.gpkg \
+    --manifest ./manifest.json
 ```
 
 Optional flags:
@@ -230,8 +230,15 @@ Pinned exact versions used for the published results are in
 
 ## Data availability
 
-*layers used in this study are archived at Zenodo,
-LINK WILL BE PROVIDED*
+The W25 / Parion LiDAR dataset used to produce the results in the
+manuscript is openly archived on Zenodo:
+
+> Malgil, I. (2026). *W25 LiDAR Survey Dataset: DEM, Orthophoto, LAS
+> Point Cloud Samples, and GIS Analysis Inputs/Outputs* [Data set].
+> Zenodo. https://doi.org/10.5281/zenodo.20384339
+
+License: Creative Commons Attribution 4.0 International (CC BY 4.0).
+
 
 ## 
 

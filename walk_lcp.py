@@ -45,6 +45,14 @@ References
 - Dijkstra, E. W. (1959). A note on two problems in connexion with
   graphs. Numerische Mathematik 1: 269-271.
 
+Companion dataset
+-----------------
+Parion / W25 LiDAR dataset (DEM, orthophoto, LAS samples, GIS inputs,
+LCP and viewshed results):
+   Malgil, I. (2026). Zenodo.
+   https://doi.org/10.5281/zenodo.20384339
+
+
 Author      : Idil Malgil
 Affiliation : HSE University, Moscow
 Contact     : idilmalgil@gmail.com

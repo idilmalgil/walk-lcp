@@ -72,3 +72,13 @@ references:
     start: 269
     end: 271
     doi: 10.1007/BF01386390
+
+  - type: dataset
+    title: "W25 LiDAR Survey Dataset: DEM, Orthophoto, LAS Point Cloud Samples, and GIS Analysis Inputs/Outputs"
+    authors:
+      - family-names: Malgil
+        given-names: Idil
+        orcid: "https://orcid.org/0000-0002-4406-3295"
+    year: 2026
+    doi: 10.5281/zenodo.20384339
+    url: "https://doi.org/10.5281/zenodo.20384339"

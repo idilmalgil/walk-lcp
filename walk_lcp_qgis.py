@@ -15,6 +15,14 @@ For journal verification we recommend running the standalone version
 (``walk_lcp.py``) since it does not require a QGIS install. This file is
 provided for users who already work in QGIS and want a one-click run.
 
+Companion dataset
+-----------------
+Parion / W25 LiDAR dataset (DEM, orthophoto, LAS samples, GIS inputs,
+LCP and viewshed results):
+   Malgil, I. (2026). Zenodo.
+   https://doi.org/10.5281/zenodo.20384339
+
+
 Author      : Idil Malgil
 License     : MIT (see LICENSE)
 """
