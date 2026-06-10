@@ -28,7 +28,8 @@ walk\\\_lcp\\\_repro/
 ├── environment.yml        ← conda environment specification
 ├── walk\\\_lcp.py            ← STANDALONE script (recommended for review)
 ├── walk\\\_lcp\\\_qgis.py       ← QGIS-runnable script (convenience)
-├── demo\\\_test\\\_run.ipynb    ← Jupyter notebook: full pipeline on synthetic data
+├── demo\\\_test\\\_run.ipynb    ← Jupyter notebook: synthetic ridge-and-gap DEM
+├── demo\\\_test\\\_run\\\_v2.ipynb  ← Jupyter notebook: alternative complex multi-ridge DEM
 ├── test\\\_walk\\\_lcp.py       ← unit tests
 └── .gitignore
 ```
@@ -116,6 +117,16 @@ none of `gdal`, `geopandas`, `shapely`, or QGIS.
 The shipped copy of the notebook is **pre-executed**, so reviewers can
 scan through the figures and printed outputs directly on GitHub or Zenodo
 without running anything.
+
+A second notebook, `demo_test_run_v2.ipynb`, demonstrates the same
+pipeline on a more complex synthetic topography — multiple Gaussian hills
+and depressions with smoothed random noise — to show that the algorithm
+generalises beyond the simple ridge-and-gap case. It can be opened and
+run the same way:
+
+```bash
+jupyter notebook demo_test_run_v2.ipynb
+```
 
 ## 
 
