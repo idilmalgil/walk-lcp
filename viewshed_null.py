@@ -830,8 +830,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="Elevation matching tolerance, metres.")
     p.add_argument("--dist-tol", type=float, default=0.10,
                    help="Separation matching tolerance, as a fraction.")
-    p.add_argument("--seed", type=int, default=20260525,
-                   help="Random seed, for an exactly reproducible null model.")
+    p.add_argument("--seed", type=int, default=20260814,
+                   help="Random seed, for an exactly reproducible null model. "
+                        "The default is the seed used for the published results.")
 
     p.add_argument("--log-level", default="INFO",
                    choices=["DEBUG", "INFO", "WARNING", "ERROR"],
