@@ -1,0 +1,57 @@
+{
+  "_README": [
+    "Configuration for viewshed_null.py — the eleven Parion foci and the seven",
+    "contextually related pairs tested in the manuscript.",
+    "",
+    "BEFORE RUNNING: replace every \"FILL\" with the real map coordinate, in the",
+    "same projected CRS as the DEM (TUREF / TM27, EPSG:5253 for the W25 dataset).",
+    "The script refuses to run while any placeholder remains.",
+    "",
+    "The eight foci named below are the ones the manuscript names explicitly.",
+    "Three of the eleven are not named in the running text — add them here with",
+    "the same names used in the Figure 8 panel labels, so that the output table",
+    "and the figure agree.",
+    "",
+    "If you keep pre-computed GRASS viewsheds in --observed-dir, each file must",
+    "be named <name>.tif using exactly the \"name\" values below."
+  ],
+
+  "crs": "EPSG:5253 (TUREF / TM27)",
+
+  "viewshed_parameters": {
+    "observer_height_m": 1.7,
+    "target_height_m": 0.0,
+    "max_distance_m": 3000.0,
+    "mode": "binary (r.viewshed -b)",
+    "note": "Uniform pedestrian baseline. No allowance is made for tower superstructures or for the original height of the tumulus mound, so elevated foci are conservative lower bounds."
+  },
+
+  "null_model": {
+    "n_pairs": 999,
+    "elevation_tolerance_m": 5.0,
+    "distance_tolerance_fraction": 0.10,
+    "analysis_grid_m": 2.0,
+    "note": "The 2 m analysis grid is the effective resolution of the low-pass filtered surface; the nominal 0.4 m grid is oversampled for this purpose."
+  },
+
+  "foci": [
+    { "name": "circular_tower",       "x": "FILL", "y": "FILL", "label": "Circular tower",       "elevated": true  },
+    { "name": "tas_kule",             "x": "FILL", "y": "FILL", "label": "Taş Kule",             "elevated": true  },
+    { "name": "acropolis_tower",      "x": "FILL", "y": "FILL", "label": "Acropolis tower",      "elevated": true  },
+    { "name": "tavsandere_tumulus",   "x": "FILL", "y": "FILL", "label": "Tavşandere tumulus",   "elevated": true  },
+    { "name": "southern_gate",        "x": "FILL", "y": "FILL", "label": "Southern gate",        "elevated": false },
+    { "name": "southeastern_gate",    "x": "FILL", "y": "FILL", "label": "Southeastern gate",    "elevated": false },
+    { "name": "eastern_gate",         "x": "FILL", "y": "FILL", "label": "Eastern gate",         "elevated": false },
+    { "name": "eastern_necropolis",   "x": "FILL", "y": "FILL", "label": "Eastern Necropolis",   "elevated": false }
+  ],
+
+  "pairs": [
+    { "a": "circular_tower",     "b": "tavsandere_tumulus", "panel": "a", "relationship": "tower / tumulus intervisibility" },
+    { "a": "southern_gate",      "b": "southeastern_gate",  "panel": "b", "relationship": "gate / gate" },
+    { "a": "tavsandere_tumulus", "b": "southern_gate",      "panel": "c", "relationship": "funerary monument / gate" },
+    { "a": "eastern_necropolis", "b": "southeastern_gate",  "panel": "d", "relationship": "necropolis / gate" },
+    { "a": "eastern_necropolis", "b": "eastern_gate",       "panel": "e", "relationship": "necropolis / gate" },
+    { "a": "circular_tower",     "b": "tas_kule",           "panel": "f", "relationship": "tower / tower" },
+    { "a": "tavsandere_tumulus", "b": "eastern_necropolis", "panel": "g", "relationship": "funerary / funerary" }
+  ]
+}

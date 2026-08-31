@@ -28,11 +28,21 @@ walk\\\_lcp\\\_repro/
 ├── environment.yml        ← conda environment specification
 ├── walk\\\_lcp.py            ← STANDALONE script (recommended for review)
 ├── walk\\\_lcp\\\_qgis.py       ← QGIS-runnable script (convenience)
+├── viewshed\\\_null.py       ← viewshed overlap vs. matched null model
+├── viewshed\\\_foci\\\_parion.json ← foci and pairs config for the manuscript
 ├── demo\\\_test\\\_run.ipynb    ← Jupyter notebook: synthetic ridge-and-gap DEM
 ├── demo\\\_test\\\_run\\\_v2.ipynb  ← Jupyter notebook: alternative complex multi-ridge DEM
-├── test\\\_walk\\\_lcp.py       ← unit tests
+├── test\\\_walk\\\_lcp.py       ← unit tests (least-cost paths)
+├── test\\\_viewshed\\\_null.py  ← unit tests (viewshed null model)
 └── .gitignore
 ```
+
+This package covers **both** quantitative analyses in the manuscript:
+
+|Analysis|Script|Manuscript output|
+|-|-|-|
+|Least-cost walking paths|`walk_lcp.py`|Figure 6|
+|Pairwise viewshed overlap vs. matched null model|`viewshed_null.py`|Table 1, Figure 10|
 
 ## 
 
@@ -63,7 +73,7 @@ pip install -r requirements.txt
 
 ```bash
 python walk_lcp.py \
-    --dem    02_processed/dem 04 Low Pass Filter.tif \
+    --dem    "02_processed/dem 04 Low Pass Filter.tif" \
     --start  03_gis_inputs/nodes_start.gpkg \
     --stop   03_gis_inputs/nodes_stop.gpkg \
     --output ./my_lcp_results.gpkg \
@@ -130,6 +140,67 @@ jupyter notebook demo_test_run_v2.ipynb
 
 ## 
 
+## Viewshed overlap against a matched null model
+
+`viewshed_null.py` produces the two viewshed inference results reported in
+the manuscript:
+
+* the **union test** — the combined visible area of a pair of foci, in
+  hectares (the manuscript's Table 1);
+* the **overlap test** — shared visible ground as a percentage of the
+  smaller of the two viewsheds (the manuscript's Figure 10).
+
+Each observed statistic is compared against a null distribution of 999
+random pairs drawn from the same DEM, matched to the observed pair on
+elevation (±5 m) and on separation (±10 %). Significance is
+`p = (r + 1) / (n + 1)` in the upper tail, Holm-corrected across the seven
+tests. All test directions are fixed a priori.
+
+### Running it
+
+```bash
+python viewshed_null.py \
+    --dem          "02_processed/dem 04 Low Pass Filter.tif" \
+    --config       viewshed_foci_parion.json \
+    --observed-dir 04_results/Viewshed/ \
+    --output       ./null_model_results.csv \
+    --output-json  ./null_model_draws.json
+```
+
+Fill in the real focus coordinates in `viewshed_foci_parion.json` first —
+the script refuses to run while any `"FILL"` placeholder remains.
+
+### Viewshed backends
+
+|Backend|Flag|Use|
+|-|-|-|
+|GRASS `r.viewshed`|`--backend grass` (default)|Reproduces the published results. Needs `grass` on PATH.|
+|Internal NumPy R2|`--backend internal`|No external software. Fast, approximate, for testing.|
+
+The two must not be mixed within a run: if the observed viewsheds came
+from GRASS, the null draws must too, or the comparison is not
+like-for-like. The CLI refuses the invalid combination and tells you to
+add `--recompute-observed`.
+
+> **Runtime warning.** The null model computes 2 × 999 viewsheds per pair.
+> With the GRASS backend and seven pairs that is a long run — hours to
+> days depending on the machine, because each call spawns a GRASS
+> session. Use `--backend internal` with a small `--n-null` first to check
+> the wiring, then run the real thing once.
+
+### Key options
+
+* `--n-null` — number of matched random pairs (default 999).
+* `--elev-tol` / `--dist-tol` — matching tolerances (default 5 m / 10 %).
+* `--aggregate` — block factor to the analysis grid (default 5, i.e.
+  0.4 m → 2 m).
+* `--aggregate-rule` — `majority` (published), `any` or `all` for
+  sensitivity checks.
+* `--seed` — fixes the null draws, so a reviewer gets byte-identical
+  numbers.
+
+## 
+
 ## Inputs
 
 |Input|Format|Requirements|
@@ -186,16 +257,34 @@ number of DEM cells.
    Run the unit tests:
 
    ```bash
-python -m pytest test\\\_walk\\\_lcp.py -v
+python -m pytest test\\\_walk\\\_lcp.py test\\\_viewshed\\\_null.py -v
 ```
 
-   The tests cover:
+   Neither test file needs input data, GDAL or GRASS — only `numpy` and
+`pytest`. They run in under a second.
+
+   `test_walk_lcp.py` covers:
 
 * Tobler's hiking function at canonical slope values (peak, flat, steep).
 * Dijkstra on a synthetic flat 5 × 5 DEM (verifies straight-line paths).
 * Dijkstra on a synthetic ridge DEM (verifies the path goes around).
 * Path reconstruction round-trips.
 * NoData handling.
+
+   `test_viewshed_null.py` covers:
+
+* Block aggregation to the 2 m analysis grid (majority / any / all).
+* The two test statistics, including the "percentage of the *smaller*
+viewshed" convention and the empty-viewshed edge case.
+* `p = (r + 1)/(n + 1)`, including the 0.001 floor at 999 draws and the
+treatment of ties.
+* Holm correction (the seven-test case that turns p = 0.001 into 0.007).
+* Matched sampling: elevation and distance constraints are actually
+honoured, draws are reproducible from a seed, and impossible constraints
+raise rather than silently returning a short null distribution.
+* The internal viewshed: flat-plain visibility, wall shadows, the
+distance cut-off, and observer height.
+* The whole driver end-to-end on a synthetic hilly DEM.
 
 ## 
 
@@ -231,11 +320,14 @@ Pinned exact versions used for the published results are in
 
 ## Reproducing the published results
 
-1. Download the dataset from \[FILL: Zenodo / Figshare / repository DOI].
+1. Download the dataset from https://doi.org/10.5281/zenodo.20384339
+(concept DOI — always resolves to the newest version).
 2. Place the files in the expected layout (see README in the data archive).
-3. Run the command above with the dataset paths.
+3. Run the `walk_lcp.py` command above with the dataset paths.
 4. Compare the SHA-256 hashes in the produced manifest against those in
 `published\\\_manifest.json` (included in the data archive).
+5. For the viewshed inference, run the `viewshed_null.py` command above
+with `--backend grass` and the default `--seed`.
 
 ## 
 
@@ -257,11 +349,21 @@ License: Creative Commons Attribution 4.0 International (CC BY 4.0).
 
 If you use this code, please cite both the manuscript and the software:
 
-```
-Manuscript "LiDAR-Integrated GIS Modelling of Urban Thresholds and Extramural Funerary Landscapes at Parion" under editorial review at Archaeological Prospection
+**Software**
 
+> Malgil, I. (2026). *Walk-LCP: Least-cost walking paths over a DEM with
+> Tobler's hiking function* [Software]. Zenodo.
+> https://doi.org/10.5281/zenodo.20381420
 
-```
+That is the concept DOI and resolves to the newest release. To cite the
+exact version behind a given result, use that release's own version DOI,
+shown on its Zenodo record.
+
+**Manuscript**
+
+> Malgil, I. and Tugrul, S. "LiDAR-Integrated GIS Modelling of Urban
+> Thresholds and Extramural Funerary Landscapes at Parion." Manuscript
+> under editorial review at *Archaeological Prospection*.
 
 A machine-readable citation is in `CITATION.cff`.
 

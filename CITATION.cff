@@ -2,12 +2,14 @@ cff-version: 1.2.0
 message: "If you use this software, please cite both the manuscript and this software as below."
 
 title: "Walk-LCP: Least-cost walking paths over a DEM with Tobler's hiking function"
-version: 1.1.0
-date-released: 2026-05-25
+version: 1.2.0
+date-released: 2026-08-31
 license: MIT
 type: software
 repository-code: "https://github.com/idilmalgil/walk-lcp"
-url: "https://doi.org/10.5281/zenodo.20381421"
+# Concept DOI — always resolves to the newest version.
+doi: 10.5281/zenodo.20381420
+url: "https://doi.org/10.5281/zenodo.20381420"
 
 authors:
   - family-names: Malgil
@@ -20,14 +22,21 @@ authors:
 abstract: >
   Walk-LCP computes least-cost walking paths and travel times across a
   digital elevation model using Dijkstra's algorithm with edge costs
-  derived from Tobler's hiking function. The package is provided as a
-  reproducibility companion to a journal manuscript and supports both
-  standalone (Python + GDAL + GeoPandas) and QGIS-bound execution.
+  derived from Tobler's hiking function. It also tests pairwise viewshed
+  overlap and combined visible area against a matched null model of
+  random point pairs drawn from the same terrain and matched on elevation
+  and separation. The package is provided as a reproducibility companion
+  to a journal manuscript and supports both standalone (Python + GDAL +
+  GeoPandas) and QGIS-bound execution.
 
 keywords:
   - least-cost path
   - Tobler hiking function
   - Dijkstra
+  - viewshed
+  - intervisibility
+  - null model
+  - Monte Carlo
   - GIS
   - digital elevation model
   - landscape archaeology
