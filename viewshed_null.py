@@ -5,47 +5,50 @@ viewshed_null.py — Pairwise viewshed overlap against a matched null model.
 
 Companion to ``walk_lcp.py`` in the reproducibility package accompanying the
 manuscript. Where ``walk_lcp.py`` produces the least-cost routes, this module
-produces the two viewshed inference results reported in the manuscript:
+produces the viewshed inference results reported in the manuscript
+(Table 1 and Table S5):
 
+* the **overlap test** — the shared (intersection) visible ground, as a
+  percentage of the smaller of the two viewsheds and as a symmetric
+  Jaccard index (intersection / union);
 * the **union test** — the combined (union) visible area of a pair of foci,
-  in hectares, compared against a matched null distribution;
-* the **overlap test** — the shared (intersection) visible ground expressed
-  as a percentage of the smaller of the two viewsheds, compared against the
-  same matched null distribution.
+  in hectares (Table S5);
+* direct **line of sight** between the two foci of every pair, in both
+  directions.
 
-Method
-------
-For each observed pair of foci (A, B):
+Method (version 2, land-masked pool model — the method behind Table 1/S5)
+------------------------------------------------------------------------
+1. Aggregate the 0.4 m DEM to the analysis grid (block mean, factor 5 ->
+   2 m by default; factor 1 keeps 0.4 m for the resolution check).
+2. Build the **analysis region**: valid DEM cells that are *land*, i.e. not
+   sea or harbour basin in the supplied water mask (``--water-mask``, a
+   0/1 raster on the DEM grid; 1 = water). Viewsheds are computed over the
+   full terrain (sight lines may cross water) but only land cells are
+   counted, and random points are drawn from land cells only.
+3. Draw a **pool** of random land cells (``--pool-size``, seeded) and
+   compute one viewshed per pool point and per focus with the same engine
+   and parameters (GRASS ``r.viewshed -b``, observer 1.7 m, target 0 m,
+   3,000 m).
+4. For each tested pair (A, B), form every pool pair (a', b') with
+   ``|z(a') - z(A)| <= elev_tol``, ``|z(b') - z(B)| <= elev_tol`` and
+   separation within ``dist_tol`` of d(A, B), and draw ``n`` of them.
+5. Compare each observed statistic with its matched null distribution:
+   upper-tail p = (r_ge + 1)/(n + 1), lower-tail p = (r_le + 1)/(n + 1),
+   **two-sided p = min(1, 2 * min(upper, lower))**; Holm correction across
+   the pairs, separately for each statistic. Exceedance counts (how many
+   draws are >= and <= the observed value) are reported so that a result
+   beyond every draw is visible as such.
 
-1. Load (or compute) the binary viewshed of A and of B.
-2. Aggregate both viewsheds and the DEM to the analysis grid (2 m by
-   default — the effective resolution of the low-pass filtered surface;
-   the nominal 0.4 m grid is oversampled for this purpose).
-3. Compute the two observed statistics over the common analysis extent
-   (the valid-data mask, *not* the raster bounding box).
-4. Draw ``n`` random pairs (a', b') from the same DEM, matched to the
-   observed pair on:
-     - elevation: ``|z(a') - z(A)| <= elev_tol`` and
-       ``|z(b') - z(B)| <= elev_tol``   (default 5 m)
-     - separation: ``|d(a', b') - d(A, B)| <= dist_tol * d(A, B)``
-       (default 10 %)
-5. Compute the same two statistics for every null pair.
-6. Report the one-sided upper-tail p-value ``p = (r + 1) / (n + 1)``,
-   where ``r`` is the number of null values greater than or equal to the
-   observed value, and apply the Holm correction across the family of
-   tests supplied in one run.
-
-All test directions are fixed a priori (upper tail): the hypothesis under
-test is that the observed pair is *more* intervisible / *more* extensive in
-combined coverage than terrain alone predicts at comparable elevation and
-separation.
+The older per-pair direct sampler (``run_pair_tests``) is kept for the
+unit tests and for small checks with the internal backend.
 
 Viewshed backends
 -----------------
 ``--backend grass`` (default)
-    Shells out to GRASS GIS ``r.viewshed``. This is the backend that
-    produced the published results and is the one to use for
-    reproduction. Requires ``grass`` on PATH.
+    GRASS GIS ``r.viewshed``. Viewsheds are computed in batches inside
+    persistent GRASS sessions (``--workers`` in parallel), which is what
+    makes a pool of thousands of viewsheds feasible. Requires the GRASS
+    launcher (``--grass-binary``, e.g. ``grass`` or ``grass84.bat``).
 
 ``--backend internal``
     A self-contained NumPy R2 (radial sweep) viewshed. It requires no
@@ -53,10 +56,8 @@ Viewshed backends
     It is an *approximation* of ``r.viewshed`` and will not reproduce the
     published numbers cell-for-cell.
 
-The two backends must not be mixed within a run: if the observed
-viewsheds were produced by GRASS, the null draws must be too, or the
-comparison is not like-for-like. The CLI enforces this — see
-``--observed-dir`` and ``--recompute-observed``.
+Observed and null viewsheds always come from the same backend in one run,
+so every comparison is like-for-like.
 
 Author      : Idil Malgil
 Affiliation : HSE University, Moscow
@@ -87,7 +88,7 @@ import numpy as np
 # can be imported and tested with just numpy installed — the same
 # convention as walk_lcp.py.
 
-__version__ = "1.2.0"
+__version__ = "2.0.0"
 _LOG = logging.getLogger("viewshed_null")
 
 M2_PER_HA = 10_000.0
@@ -242,9 +243,25 @@ def pct_of_smaller(a: np.ndarray, b: np.ndarray) -> float:
     return 100.0 * float(np.count_nonzero(a & b)) / smaller
 
 
+def jaccard(a: np.ndarray, b: np.ndarray) -> float:
+    """Symmetric overlap: |A & B| / |A | B|. Returns 0.0 when both are empty."""
+    union = int(np.count_nonzero(a | b))
+    if union == 0:
+        return 0.0
+    return float(np.count_nonzero(a & b)) / union
+
+
 STATISTICS = {
     "union_ha": "Combined (union) visible area, hectares",
     "overlap_pct_smaller": "Shared visible ground, % of the smaller viewshed",
+}
+
+# Statistics reported by the pool model (version 2).
+POOL_STATISTICS = {
+    "overlap_ha": "Shared visible land, hectares",
+    "overlap_pct_smaller": "Shared visible land, % of the smaller viewshed",
+    "jaccard": "Jaccard index of the two viewsheds (intersection / union)",
+    "union_ha": "Combined (union) visible land, hectares",
 }
 
 
@@ -413,7 +430,9 @@ class GrassViewshed(ViewshedBackend):
         target_height: float = 0.0,
         max_distance: float = 3000.0,
         grass_binary: str = "grass",
+        grass_python: str = "python",
     ) -> None:
+        self.grass_python = grass_python
         self.dem_path = Path(dem_path)
         self.gt = gt
         self.shape = shape
@@ -435,14 +454,15 @@ class GrassViewshed(ViewshedBackend):
             script.write_text(_GRASS_SCRIPT, encoding="utf-8")
             out_tif = tmp_path / "vs.tif"
             cmd = [
-                self.grass_binary, "--tmp-location", str(self.dem_path),
-                "--exec", sys.executable, str(script),
+                self.grass_binary, "--tmp-project", str(self.dem_path),
+                "--exec", self.grass_python, str(script),
                 str(self.dem_path), str(out_tif),
                 f"{east:.6f}", f"{north:.6f}",
                 str(self.observer_height), str(self.target_height),
                 str(self.max_distance),
             ]
-            proc = subprocess.run(cmd, capture_output=True, text=True)
+            proc = subprocess.run(cmd, capture_output=True, text=True,
+                                  shell=self.grass_binary.lower().endswith(".bat"))
             if proc.returncode != 0 or not out_tif.exists():
                 raise RuntimeError(
                     "GRASS r.viewshed failed.\n"
@@ -585,6 +605,19 @@ def empirical_p(observed: float, null_values: np.ndarray) -> float:
     null_values = np.asarray(null_values, dtype=float)
     r = int(np.count_nonzero(null_values >= observed))
     return (r + 1) / (null_values.size + 1)
+
+
+def empirical_p_lower(observed: float, null_values: np.ndarray) -> float:
+    """One-sided lower-tail p-value, ``(r_le + 1) / (n + 1)``."""
+    null_values = np.asarray(null_values, dtype=float)
+    r = int(np.count_nonzero(null_values <= observed))
+    return (r + 1) / (null_values.size + 1)
+
+
+def empirical_p_two_sided(observed: float, null_values: np.ndarray) -> float:
+    """Two-sided p-value: twice the smaller one-sided p-value, capped at 1."""
+    return min(1.0, 2.0 * min(empirical_p(observed, null_values),
+                              empirical_p_lower(observed, null_values)))
 
 
 def holm(p_values: list[float] | np.ndarray) -> np.ndarray:
@@ -778,6 +811,460 @@ def load_config(path: Path) -> tuple[list[Focus], list[tuple[str, str]]]:
 
 
 # =============================================================================
+# Version 2: land-masked pool model
+# =============================================================================
+
+_POPCOUNT = np.array([bin(i).count("1") for i in range(256)], dtype=np.uint8)
+
+
+def popcount(packed: np.ndarray) -> int:
+    """Number of set bits in a ``np.packbits`` array."""
+    if hasattr(np, "bitwise_count"):                     # numpy >= 2.0
+        return int(np.bitwise_count(packed).sum(dtype=np.int64))
+    return int(_POPCOUNT[packed].sum(dtype=np.int64))
+
+
+def packed_stats(pa: np.ndarray, pb: np.ndarray, cell_ha: float,
+                 na: int | None = None, nb: int | None = None) -> dict[str, float]:
+    """The four pool statistics from two bit-packed viewsheds."""
+    na = popcount(pa) if na is None else na
+    nb = popcount(pb) if nb is None else nb
+    inter = popcount(pa & pb)
+    union = na + nb - inter
+    smaller = min(na, nb)
+    return {
+        "overlap_ha": inter * cell_ha,
+        "overlap_pct_smaller": 100.0 * inter / smaller if smaller else 0.0,
+        "jaccard": inter / union if union else 0.0,
+        "union_ha": union * cell_ha,
+    }
+
+
+@dataclass
+class AnalysisGrid:
+    """The DEM on the analysis grid together with the analysis region."""
+    dem: np.ndarray              # float64, NaN = nodata
+    valid: np.ndarray            # DEM has data
+    land: np.ndarray             # valid and not water  (= the analysis region)
+    gt: tuple[float, ...]
+    projection: str
+    factor: int
+
+    @property
+    def pixel_size(self) -> float:
+        return (abs(self.gt[1]) + abs(self.gt[5])) / 2.0
+
+    @property
+    def cell_ha(self) -> float:
+        return abs(self.gt[1]) * abs(self.gt[5]) / M2_PER_HA
+
+
+def build_analysis_grid(dem_path: Path, water_mask_path: Path | None, factor: int) -> AnalysisGrid:
+    """Aggregate the DEM (block mean) and the water mask (majority) to the analysis grid.
+
+    The water mask must be on exactly the DEM grid (same size and geotransform).
+    Without a mask the analysis region is every valid DEM cell (the
+    sea-included model of the original submission).
+    """
+    dem_raster = read_raster(dem_path)
+    dem_fine = dem_raster.array.astype(np.float64)
+    if dem_raster.nodata is not None:
+        dem_fine = np.where(dem_fine == dem_raster.nodata, np.nan, dem_fine)
+    dem = aggregate_mean(dem_fine, factor)
+    valid = np.isfinite(dem)
+
+    if water_mask_path is not None:
+        wm = read_raster(water_mask_path)
+        if wm.array.shape != dem_fine.shape or not np.allclose(wm.gt, dem_raster.gt):
+            raise RuntimeError(
+                f"Water mask {water_mask_path} is not on the DEM grid "
+                f"(shape {wm.array.shape} vs {dem_fine.shape}, gt {wm.gt} vs {dem_raster.gt})."
+            )
+        water = aggregate_binary(wm.array > 0, factor, "majority")
+        land = valid & ~water
+    else:
+        land = valid.copy()
+
+    gt = list(dem_raster.gt)
+    gt[1] *= factor
+    gt[5] *= factor
+    return AnalysisGrid(dem=dem, valid=valid, land=land, gt=tuple(gt),
+                        projection=dem_raster.projection, factor=factor)
+
+
+def write_grid_dem(grid: AnalysisGrid, path: Path, nodata: float = -99999.0) -> None:
+    """Write the analysis-grid DEM (input for GRASS)."""
+    arr = np.where(grid.valid, grid.dem, nodata).astype(np.float32)
+    like = Raster(arr, grid.gt, grid.projection, nodata)
+    write_raster(path, arr, like, nodata=nodata)
+
+
+_GRASS_BATCH_SCRIPT = r'''
+import json, sys
+import numpy as np
+import grass.script as gs
+from grass.script import array as garray
+
+dem_tif, job_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
+job = json.load(open(job_path, encoding="utf-8"))
+gs.run_command("r.in.gdal", input=dem_tif, output="dem", flags="o", overwrite=True, quiet=True)
+gs.run_command("g.region", raster="dem")
+
+if job["mode"] == "viewshed":
+    count_mask = np.load(job["mask"])                 # cells that are counted (land)
+    valid = np.load(job["valid"])
+    packed, n_land, n_all = [], [], []
+    for x, y in job["points"]:
+        gs.run_command("r.viewshed", input="dem", output="vs", coordinates=(x, y),
+                       observer_elevation=job["obs_h"], target_elevation=job["tgt_h"],
+                       max_distance=job["max_d"], memory=job["memory"], flags="b",
+                       overwrite=True, quiet=True)
+        vs = garray.array("vs")
+        vis = np.isfinite(vs) & (vs > 0)
+        if vis.shape != count_mask.shape:
+            raise RuntimeError("viewshed shape %s != grid %s" % (vis.shape, count_mask.shape))
+        n_all.append(int(np.count_nonzero(vis & valid)))
+        vis &= count_mask
+        n_land.append(int(np.count_nonzero(vis)))
+        packed.append(np.packbits(vis.ravel()))
+    np.savez(out_path, packed=np.array(packed), n_land=np.array(n_land), n_all=np.array(n_all))
+
+elif job["mode"] == "los":
+    out = []
+    for q in job["queries"]:
+        gs.run_command("r.viewshed", input="dem", output="vs", coordinates=tuple(q["obs"]),
+                       observer_elevation=q["obs_h"], target_elevation=q["tgt_h"],
+                       max_distance=q["max_d"], memory=job["memory"], flags="b",
+                       overwrite=True, quiet=True)
+        res = gs.read_command("r.what", map="vs", coordinates=tuple(q["tgt"]), separator="|")
+        val = res.strip().split("|")[-1]
+        out.append(None if val in ("*", "") else float(val))
+    json.dump(out, open(out_path, "w"))
+'''
+
+
+class GrassBatch:
+    """Many ``r.viewshed`` runs in a few persistent GRASS sessions, in parallel."""
+
+    def __init__(self, grid: AnalysisGrid, workdir: Path, grass_binary: str,
+                 grass_python: str = "python", workers: int = 8,
+                 observer_height: float = 1.7, target_height: float = 0.0,
+                 max_distance: float = 3000.0, memory: int = 4000) -> None:
+        self.grid = grid
+        self.workdir = Path(workdir)
+        self.workdir.mkdir(parents=True, exist_ok=True)
+        self.grass_binary = grass_binary
+        self.grass_python = grass_python
+        self.workers = max(1, workers)
+        self.obs_h, self.tgt_h, self.max_d, self.memory = (
+            observer_height, target_height, max_distance, memory)
+        self.dem_tif = self.workdir / f"_dem_f{grid.factor}.tif"
+        write_grid_dem(grid, self.dem_tif)
+        self.script = self.workdir / "_grass_batch.py"
+        self.script.write_text(_GRASS_BATCH_SCRIPT, encoding="utf-8")
+        np.save(self.workdir / "_land.npy", grid.land)
+        np.save(self.workdir / "_valid.npy", grid.valid)
+
+    def _run(self, tag: str, job: dict, out_suffix: str) -> Path:
+        job_path = self.workdir / f"_job_{tag}.json"
+        out_path = self.workdir / f"_out_{tag}{out_suffix}"
+        text = json.dumps(job)
+        # Resume: an identical job already finished in this work directory.
+        if (out_path.exists() and job_path.exists()
+                and job_path.read_text(encoding="utf-8") == text):
+            _LOG.info("  reusing cached GRASS output %s", out_path.name)
+            return out_path
+        job_path.write_text(text, encoding="utf-8")
+        cmd = [self.grass_binary, "--tmp-project", str(self.dem_tif), "--exec",
+               self.grass_python, str(self.script), str(self.dem_tif), str(job_path), str(out_path)]
+        proc = subprocess.run(cmd, capture_output=True, text=True,
+                              shell=self.grass_binary.lower().endswith(".bat"))
+        if proc.returncode != 0 or not out_path.exists():
+            raise RuntimeError(f"GRASS batch {tag} failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}")
+        return out_path
+
+    def viewsheds(self, points_xy: list[tuple[float, float]], tag: str
+                  ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Bit-packed land viewsheds, land cell counts and all-valid cell counts."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        chunks = [c for c in np.array_split(np.arange(len(points_xy)), self.workers) if c.size]
+        common = {"mode": "viewshed", "obs_h": self.obs_h, "tgt_h": self.tgt_h,
+                  "max_d": self.max_d, "memory": self.memory,
+                  "mask": str(self.workdir / "_land.npy"), "valid": str(self.workdir / "_valid.npy")}
+
+        def job_for(idx):
+            return dict(common, points=[list(map(float, points_xy[i])) for i in idx])
+
+        def cached(k, idx):
+            out = self.workdir / f"_out_{tag}_{k}.npz"
+            jp = self.workdir / f"_job_{tag}_{k}.json"
+            return (out.exists() and out.stat().st_size > 0 and jp.exists()
+                    and jp.read_text(encoding="utf-8") == json.dumps(job_for(idx)))
+
+        # Chunks finished in an earlier (interrupted) run are reused; the rest
+        # are split further so that all workers stay busy.
+        missing = [k for k, idx in enumerate(chunks) if not cached(k, idx)]
+        split = max(1, self.workers // max(1, len(missing)))
+        tasks = []                                  # (chunk k, sub-tag, indices)
+        for k, idx in enumerate(chunks):
+            if k in missing and split > 1:
+                for s, sub in enumerate(np.array_split(idx, split)):
+                    if sub.size:
+                        tasks.append((k, f"{tag}_{k}_s{s}of{split}", sub))
+            else:
+                tasks.append((k, f"{tag}_{k}", idx))
+
+        def run_task(task):
+            _, sub_tag, idx = task
+            try:
+                return np.load(self._run(sub_tag, job_for(idx), ".npz"))
+            except RuntimeError:                    # one retry: transient GRASS I/O errors
+                _LOG.warning("  GRASS batch %s failed once, retrying", sub_tag)
+                return np.load(self._run(sub_tag, job_for(idx), ".npz"))
+
+        with ThreadPoolExecutor(max_workers=self.workers) as ex:
+            parts = list(ex.map(run_task, tasks))
+        return (np.concatenate([p["packed"] for p in parts]),
+                np.concatenate([p["n_land"] for p in parts]),
+                np.concatenate([p["n_all"] for p in parts]))
+
+    def los(self, queries: list[dict], tag: str = "los") -> list[float | None]:
+        job = {"mode": "los", "memory": self.memory, "queries": queries}
+        return json.load(open(self._run(tag, job, ".json"), encoding="utf-8"))
+
+
+def internal_viewsheds(grid: AnalysisGrid, points_xy, observer_height=1.7,
+                       target_height=0.0, max_distance=3000.0):
+    """Same output as :meth:`GrassBatch.viewsheds`, with the internal backend."""
+    eng = InternalViewshed(grid.dem, grid.pixel_size, observer_height, target_height, max_distance)
+    packed, n_land, n_all = [], [], []
+    for x, y in points_xy:
+        r, c = world_to_pixel(grid.gt, x, y)
+        vis = eng.compute(r, c) & grid.valid
+        n_all.append(int(np.count_nonzero(vis)))
+        vis &= grid.land
+        n_land.append(int(np.count_nonzero(vis)))
+        packed.append(np.packbits(vis.ravel()))
+    return np.array(packed), np.array(n_land), np.array(n_all)
+
+
+def draw_pool(grid: AnalysisGrid, size: int, rng: np.random.Generator) -> np.ndarray:
+    """Flat indices of ``size`` distinct random cells from the analysis region (land)."""
+    cells = np.flatnonzero(grid.land.ravel())
+    if size > cells.size:
+        raise RuntimeError(f"Pool size {size} exceeds the {cells.size} land cells.")
+    return np.sort(rng.choice(cells, size=size, replace=False))
+
+
+def matched_pool_pairs(pool_z: np.ndarray, pool_xy: np.ndarray, z_a: float, z_b: float,
+                       separation: float, elev_tol: float, dist_tol: float) -> np.ndarray:
+    """All (i, j) pool pairs matching (z_a, z_b, separation); shape (k, 2)."""
+    ia = np.flatnonzero(np.abs(pool_z - z_a) <= elev_tol)
+    ib = np.flatnonzero(np.abs(pool_z - z_b) <= elev_tol)
+    if ia.size == 0 or ib.size == 0:
+        return np.empty((0, 2), dtype=np.int64)
+    d = np.hypot(pool_xy[ia, 0][:, None] - pool_xy[ib, 0][None, :],
+                 pool_xy[ia, 1][:, None] - pool_xy[ib, 1][None, :])
+    ok = (np.abs(d - separation) <= dist_tol * separation) & (ia[:, None] != ib[None, :])
+    r, c = np.nonzero(ok)
+    return np.stack([ia[r], ib[c]], axis=1)
+
+
+def summarise_null(observed: float, values: np.ndarray) -> dict:
+    """Null summary, exceedance counts and the three p-values for one statistic."""
+    n = values.size
+    r_ge = int(np.count_nonzero(values >= observed))
+    r_le = int(np.count_nonzero(values <= observed))
+    p_up, p_lo = (r_ge + 1) / (n + 1), (r_le + 1) / (n + 1)
+    return {
+        "observed": float(observed),
+        "null_median": float(np.median(values)),
+        "null_q05": float(np.percentile(values, 5)),
+        "null_q95": float(np.percentile(values, 95)),
+        "null_min": float(values.min()),
+        "null_max": float(values.max()),
+        "n_null": int(n),
+        "n_null_ge_observed": r_ge,
+        "n_null_le_observed": r_le,
+        "p_upper": p_up,
+        "p_lower": p_lo,
+        "p_two_sided": min(1.0, 2.0 * min(p_up, p_lo)),
+        "beyond_all_draws": ("above" if r_ge == 0 else "below" if r_le == 0 else ""),
+        "percentile": 100.0 * float(np.count_nonzero(values < observed)) / n,
+    }
+
+
+def line_of_sight_profile(dem: np.ndarray, gt: tuple[float, ...], a_xy, b_xy,
+                          h_a: float, h_b: float) -> dict:
+    """Exact sight-line test along the A->B profile (bilinear DEM, step = cell/4).
+
+    The sight line runs from z(A) + h_a to z(B) + h_b. ``clearance_m`` is the
+    smallest height of the sight line above the terrain between the two end
+    cells (negative = blocked); ``blocked_at_m`` is the distance from A of
+    that tightest point.
+    """
+    px = abs(gt[1])
+    (xa, ya), (xb, yb) = a_xy, b_xy
+    length = math.hypot(xb - xa, yb - ya)
+    n = max(2, int(length / (px / 4.0)))
+    t = np.linspace(0.0, 1.0, n + 1)
+    x, y = xa + t * (xb - xa), ya + t * (yb - ya)
+    fc = (x - gt[0]) / gt[1] - 0.5
+    fr = (y - gt[3]) / gt[5] - 0.5
+    c0 = np.clip(np.floor(fc).astype(int), 0, dem.shape[1] - 2)
+    r0 = np.clip(np.floor(fr).astype(int), 0, dem.shape[0] - 2)
+    dc, dr = np.clip(fc - c0, 0, 1), np.clip(fr - r0, 0, 1)
+    z = (dem[r0, c0] * (1 - dr) * (1 - dc) + dem[r0, c0 + 1] * (1 - dr) * dc
+         + dem[r0 + 1, c0] * dr * (1 - dc) + dem[r0 + 1, c0 + 1] * dr * dc)
+    line = (z[0] + h_a) + t * ((z[-1] + h_b) - (z[0] + h_a))
+    inner = (t * length > px) & ((1 - t) * length > px)     # skip the two end cells
+    margin = np.where(inner, line - z, np.inf)
+    k = int(np.nanargmin(margin))
+    return {"visible": bool(margin[k] >= 0), "clearance_m": float(margin[k]),
+            "blocked_at_m": float(t[k] * length), "length_m": float(length)}
+
+
+def truncation_summary(grid: AnalysisGrid, x: float, y: float, vis_packed: np.ndarray,
+                       max_distance: float) -> dict:
+    """How far the survey extent, rather than the radius, limits one viewshed."""
+    from scipy import ndimage  # lazy import, only needed here
+
+    rows, cols = grid.dem.shape
+    r, c = world_to_pixel(grid.gt, x, y)
+    yy = (np.arange(rows)[:, None] - r) * abs(grid.gt[5])
+    xx = (np.arange(cols)[None, :] - c) * abs(grid.gt[1])
+    dist = np.hypot(xx, yy)
+    disk_area_ha = math.pi * max_distance ** 2 / M2_PER_HA
+    in_disk_valid = grid.valid & (dist <= max_distance)
+    vis = np.unpackbits(vis_packed, count=rows * cols).reshape(rows, cols).astype(bool)
+    # visible cells touching the edge of the DEM (nodata or raster border)
+    edge = ~ndimage.binary_erosion(np.pad(grid.valid, 1), np.ones((3, 3)))[1:-1, 1:-1] & grid.valid
+    return {
+        "radius_m": max_distance,
+        "disk_area_ha": disk_area_ha,
+        "dem_valid_in_disk_ha": float(np.count_nonzero(in_disk_valid) * grid.cell_ha),
+        "pct_of_disk_covered_by_dem": 100.0 * np.count_nonzero(in_disk_valid) * grid.cell_ha / disk_area_ha,
+        "farthest_valid_cell_m": float(dist[grid.valid].max()),
+        "farthest_visible_cell_m": float(dist[vis].max()) if vis.any() else 0.0,
+        "visible_cells_on_dem_edge": int(np.count_nonzero(vis & edge)),
+        "truncated_by_survey_extent": bool(dist[grid.valid].max() < max_distance or
+                                           np.count_nonzero(vis & edge) > 0),
+    }
+
+
+def run_pool_model(grid: AnalysisGrid, foci: list[Focus], pairs: list[tuple[str, str]],
+                   compute_viewsheds, pool_size: int, n_null: int, elev_tol: float,
+                   dist_tol: float, seed: int, pool_index: np.ndarray | None = None) -> dict:
+    """Run the land-masked pool null model. Returns everything needed for output.
+
+    ``compute_viewsheds(points_xy, tag)`` must return (packed, n_land, n_all).
+    ``pool_index`` reuses a given set of pool cells (flat indices on this grid)
+    instead of drawing a new pool — used for the resolution check.
+    """
+    rng = np.random.default_rng(seed)
+    rows, cols = grid.dem.shape
+    if pool_index is None:
+        pool_index = draw_pool(grid, pool_size, rng)
+    pr, pc = np.divmod(pool_index, cols)
+    pool_xy = np.array([pixel_to_world(grid.gt, int(a), int(b)) for a, b in zip(pr, pc)])
+    pool_z = grid.dem[pr, pc]
+
+    resolve_foci(foci, grid.dem, grid.gt)
+    for f in foci:
+        if not grid.land[f.row, f.col]:
+            _LOG.warning("Focus %s falls on a water/no-data cell of the analysis grid.", f.name)
+    fmap = {f.name: f for f in foci}
+
+    _LOG.info("Computing %d focus viewsheds", len(foci))
+    f_packed, f_land, f_all = compute_viewsheds([(f.x, f.y) for f in foci], "foci")
+    fidx = {f.name: i for i, f in enumerate(foci)}
+    _LOG.info("Computing %d pool viewsheds", len(pool_xy))
+    p_packed, p_land, p_all = compute_viewsheds([tuple(p) for p in pool_xy], "pool")
+
+    results, draws = [], {}
+    for a_name, b_name in pairs:
+        A, B = fmap[a_name], fmap[b_name]
+        ia, ib = fidx[a_name], fidx[b_name]
+        sep = math.hypot(A.x - B.x, A.y - B.y)
+        obs = packed_stats(f_packed[ia], f_packed[ib], grid.cell_ha, f_land[ia], f_land[ib])
+        avail = matched_pool_pairs(pool_z, pool_xy, A.elevation, B.elevation, sep, elev_tol, dist_tol)
+        if avail.shape[0] == 0:
+            raise RuntimeError(f"No matched pool pairs for {a_name} x {b_name}.")
+        replace = avail.shape[0] < n_null
+        if replace:
+            _LOG.warning("%s x %s: only %d matched pairs, drawing with replacement",
+                         a_name, b_name, avail.shape[0])
+        pick = avail[rng.choice(avail.shape[0], size=n_null, replace=replace)]
+        vals = {k: np.empty(n_null) for k in POOL_STATISTICS}
+        for i, (u, v) in enumerate(pick):
+            s = packed_stats(p_packed[u], p_packed[v], grid.cell_ha, p_land[u], p_land[v])
+            for k in POOL_STATISTICS:
+                vals[k][i] = s[k]
+        draws[f"{a_name}_x_{b_name}"] = {"pool_pairs": pick, **vals}
+        for k in POOL_STATISTICS:
+            row = {"pair": f"{a_name} x {b_name}", "a": a_name, "b": b_name,
+                   "separation_m": sep, "z_a": A.elevation, "z_b": B.elevation,
+                   "statistic": k, "n_matched_available": int(avail.shape[0]),
+                   "drawn_with_replacement": bool(replace)}
+            row.update(summarise_null(obs[k], vals[k]))
+            results.append(row)
+        _LOG.info("  %-36s overlap=%.2f ha (%.1f %%), J=%.3f, union=%.2f ha, avail=%d",
+                  f"{a_name} x {b_name}", obs["overlap_ha"], obs["overlap_pct_smaller"],
+                  obs["jaccard"], obs["union_ha"], avail.shape[0])
+
+    for k in POOL_STATISTICS:
+        fam = [r for r in results if r["statistic"] == k]
+        for r, p in zip(fam, holm([r["p_two_sided"] for r in fam])):
+            r["p_holm_two_sided"] = float(p)
+
+    return {
+        "results": results, "draws": draws,
+        "pool": {"index": pool_index, "xy": pool_xy, "z": pool_z,
+                 "land_ha": p_land * grid.cell_ha, "all_ha": p_all * grid.cell_ha},
+        "foci": [{"name": f.name, "x": f.x, "y": f.y, "row": f.row, "col": f.col,
+                  "z": f.elevation, "on_land": bool(grid.land[f.row, f.col]),
+                  "visible_land_ha": float(f_land[i] * grid.cell_ha),
+                  "visible_all_ha": float(f_all[i] * grid.cell_ha)}
+                 for i, f in enumerate(foci)],
+        "foci_packed": f_packed,
+        "region": {"cell_size_m": grid.pixel_size, "rows": rows, "cols": cols,
+                   "valid_ha": float(np.count_nonzero(grid.valid) * grid.cell_ha),
+                   "land_ha": float(np.count_nonzero(grid.land) * grid.cell_ha),
+                   "water_or_excluded_ha": float(np.count_nonzero(grid.valid & ~grid.land) * grid.cell_ha)},
+    }
+
+
+def write_pool_outputs(out: dict, outdir: Path, meta: dict) -> None:
+    """Write results CSV/JSON, null draws (.npz), pool and foci tables."""
+    outdir.mkdir(parents=True, exist_ok=True)
+    keys = ["pair", "a", "b", "separation_m", "z_a", "z_b", "statistic", "observed",
+            "null_median", "null_q05", "null_q95", "null_min", "null_max", "n_null",
+            "n_matched_available", "drawn_with_replacement", "n_null_ge_observed",
+            "n_null_le_observed", "beyond_all_draws", "percentile", "p_upper", "p_lower",
+            "p_two_sided", "p_holm_two_sided"]
+    with open(outdir / "results_table.csv", "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=keys)
+        w.writeheader()
+        for r in out["results"]:
+            w.writerow({k: (f"{r[k]:.6g}" if isinstance(r[k], float) else r[k]) for k in keys})
+    np.savez_compressed(outdir / "null_draws.npz", **{
+        f"{pair}__{k}": v for pair, d in out["draws"].items() for k, v in d.items()})
+    with open(outdir / "pool_points.csv", "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["pool_id", "x", "y", "z", "visible_land_ha", "visible_all_ha"])
+        p = out["pool"]
+        for i in range(len(p["z"])):
+            w.writerow([i, f"{p['xy'][i, 0]:.3f}", f"{p['xy'][i, 1]:.3f}", f"{p['z'][i]:.3f}",
+                        f"{p['land_ha'][i]:.4f}", f"{p['all_ha'][i]:.4f}"])
+    payload = {"script": "viewshed_null.py", "script_version": __version__, **meta,
+               "statistics": POOL_STATISTICS, "region": out["region"], "foci": out["foci"],
+               "results": out["results"]}
+    with open(outdir / "results.json", "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+
+
+# =============================================================================
 # CLI
 # =============================================================================
 
@@ -792,10 +1279,24 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="Low-pass filtered DEM (GeoTIFF), in a projected CRS in metres.")
     p.add_argument("--config", required=True, type=Path,
                    help="JSON file listing the foci and the pairs to test.")
-    p.add_argument("--output", required=True, type=Path,
-                   help="Path for the results CSV.")
+    p.add_argument("--mode", choices=["pool", "direct"], default="pool",
+                   help="'pool' = land-masked pool model (Table 1 / S5, version 2); "
+                        "'direct' = the version-1 per-pair sampler.")
+    p.add_argument("--water-mask", type=Path, default=None,
+                   help="0/1 raster on the DEM grid, 1 = sea/harbour. Water cells are "
+                        "excluded from the counted viewsheds and from random sampling.")
+    p.add_argument("--outdir", type=Path, default=None,
+                   help="pool mode: output directory.")
+    p.add_argument("--pool-size", type=int, default=3000,
+                   help="pool mode: number of random land points.")
+    p.add_argument("--workers", type=int, default=8,
+                   help="pool mode, GRASS backend: parallel GRASS sessions.")
+    p.add_argument("--grass-python", default="python",
+                   help="Python interpreter to run inside the GRASS session.")
+    p.add_argument("--output", type=Path, default=None,
+                   help="direct mode: path for the results CSV.")
     p.add_argument("--output-json", type=Path, default=None,
-                   help="Also write the full null distributions to this JSON path.")
+                   help="direct mode: also write the full null distributions to this JSON path.")
 
     p.add_argument("--observed-dir", type=Path, default=None,
                    help="Directory of pre-computed observed viewshed GeoTIFFs, "
@@ -834,11 +1335,130 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="Random seed, for an exactly reproducible null model. "
                         "The default is the seed used for the published results.")
 
+    p.add_argument("--pool-from", type=Path, default=None,
+                   help="pool mode: reuse the pool points of an earlier run (its "
+                        "pool_points.csv) instead of drawing new ones.")
+    p.add_argument("--pool-subset-bands", action="store_true",
+                   help="With --pool-from: keep only pool points inside the elevation "
+                        "band of a tested focus (saves time at 0.4 m).")
+    p.add_argument("--only-pairs", default=None,
+                   help="Comma-separated A:B names; test only these pairs.")
+
     p.add_argument("--log-level", default="INFO",
                    choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                    help="Console log level.")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return p
+
+
+def _pool_from_csv(path: Path, grid: AnalysisGrid) -> np.ndarray:
+    """Flat indices (on ``grid``) of the pool points listed in a pool_points.csv."""
+    idx = []
+    with open(path, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            r, c = world_to_pixel(grid.gt, float(row["x"]), float(row["y"]))
+            idx.append(r * grid.dem.shape[1] + c)
+    return np.array(idx, dtype=np.int64)
+
+
+def main_pool(args) -> int:
+    """Land-masked pool model + line of sight + truncation check."""
+    from datetime import datetime, timezone
+
+    if args.outdir is None:
+        raise SystemExit("--outdir is required in pool mode")
+    grid = build_analysis_grid(args.dem, args.water_mask, args.aggregate)
+    _LOG.info("Analysis grid %d x %d, %.4f m; valid %.2f ha, land %.2f ha",
+              grid.dem.shape[0], grid.dem.shape[1], grid.pixel_size,
+              np.count_nonzero(grid.valid) * grid.cell_ha, np.count_nonzero(grid.land) * grid.cell_ha)
+
+    foci, pairs = load_config(args.config)
+    if args.only_pairs:
+        wanted = [tuple(s.split(":")) for s in args.only_pairs.split(",")]
+        pairs = [p for p in pairs if p in wanted]
+    used = {n for p in pairs for n in p}
+    foci = [f for f in foci if f.name in used or not args.only_pairs]
+
+    if args.backend == "grass":
+        gb = GrassBatch(grid, args.outdir / "_grass", args.grass_binary, args.grass_python,
+                        args.workers, args.observer_height, args.target_height, args.max_distance)
+        compute = gb.viewsheds
+    else:
+        gb = None
+        compute = lambda pts, tag: internal_viewsheds(          # noqa: E731
+            grid, pts, args.observer_height, args.target_height, args.max_distance)
+
+    pool_index = None
+    if args.pool_from:
+        pool_index = _pool_from_csv(args.pool_from, grid)
+        if args.pool_subset_bands:
+            resolve_foci(foci, grid.dem, grid.gt)
+            z = grid.dem.ravel()[pool_index]
+            keep = np.zeros(z.size, bool)
+            for f in foci:
+                keep |= np.abs(z - f.elevation) <= args.elev_tol
+            _LOG.info("Pool subset: %d of %d points lie in a tested elevation band",
+                      keep.sum(), z.size)
+            pool_index = pool_index[keep]
+
+    out = run_pool_model(grid, foci, pairs, compute, args.pool_size, args.n_null,
+                         args.elev_tol, args.dist_tol, args.seed, pool_index)
+
+    # Direct line of sight, both directions, target 1.7 m (and 0 m for reference).
+    fmap = {f.name: f for f in foci}
+    los_rows, queries = [], []
+    for a_name, b_name in pairs:
+        for src, dst in ((a_name, b_name), (b_name, a_name)):
+            for tgt_h in (1.7, 0.0):
+                S, T = fmap[src], fmap[dst]
+                prof = line_of_sight_profile(grid.dem, grid.gt, (S.x, S.y), (T.x, T.y),
+                                             args.observer_height, tgt_h)
+                los_rows.append({"pair": f"{a_name} x {b_name}", "from": src, "to": dst,
+                                 "observer_h_m": args.observer_height, "target_h_m": tgt_h,
+                                 **{f"profile_{k}": v for k, v in prof.items()}})
+                queries.append({"obs": [S.x, S.y], "tgt": [T.x, T.y],
+                                "obs_h": args.observer_height, "tgt_h": tgt_h,
+                                "max_d": prof["length_m"] + 3 * grid.pixel_size})
+    if gb is not None:
+        for row, v in zip(los_rows, gb.los(queries)):
+            row["grass_r_viewshed_visible"] = bool(v) if v is not None else False
+    with open(args.outdir / "line_of_sight.csv", "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=list(los_rows[0].keys()))
+        w.writeheader()
+        w.writerows(los_rows)
+
+    # Truncation: survey extent versus the 3,000 m radius.
+    trunc = []
+    for i, f in enumerate(foci):
+        t = truncation_summary(grid, f.x, f.y, out["foci_packed"][i], args.max_distance)
+        trunc.append({"focus": f.name, **t})
+    with open(args.outdir / "viewshed_truncation.csv", "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(trunc[0].keys()))
+        w.writeheader()
+        w.writerows(trunc)
+
+    meta = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "parameters": {
+            "dem": str(args.dem), "water_mask": str(args.water_mask) if args.water_mask else None,
+            "aggregate_factor": args.aggregate, "cell_size_m": grid.pixel_size,
+            "backend": args.backend, "observer_height_m": args.observer_height,
+            "target_height_m": args.target_height, "max_distance_m": args.max_distance,
+            "pool_size": int(len(out["pool"]["z"])), "pool_from": str(args.pool_from) if args.pool_from else None,
+            "n_null": args.n_null, "elev_tol_m": args.elev_tol, "dist_tol": args.dist_tol,
+            "seed": args.seed, "p_value": "two-sided, min(1, 2*min(upper, lower)); upper=(r_ge+1)/(n+1)",
+            "multiple_comparisons": "Holm across the tested pairs, per statistic",
+        },
+        "line_of_sight": los_rows, "truncation": trunc,
+    }
+    write_pool_outputs(out, args.outdir, meta)
+    _LOG.info("Wrote pool-model outputs to %s", args.outdir)
+    for r in out["results"]:
+        if r["statistic"] in ("overlap_pct_smaller", "jaccard", "union_ha"):
+            _LOG.info("%-34s %-20s obs=%9.3f med=%9.3f p2=%.3f holm=%.3f %s",
+                      r["pair"], r["statistic"], r["observed"], r["null_median"],
+                      r["p_two_sided"], r["p_holm_two_sided"], r["beyond_all_draws"])
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -848,6 +1468,11 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s [%(levelname)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+    if args.mode == "pool":
+        return main_pool(args)
+    if args.output is None:
+        raise SystemExit("--output is required in direct mode")
 
     if args.backend == "internal" and args.observed_dir and not args.recompute_observed:
         _LOG.error(
@@ -899,12 +1524,18 @@ def main(argv: list[str] | None = None) -> int:
             _LOG.info("  loaded observed viewshed: %s", tif.name)
 
     if args.backend == "grass":
+        # GRASS must see the DEM on the analysis grid, otherwise its output
+        # (full resolution) cannot match the aggregated grid (fixed in 2.0.0).
+        agg_dem = Path(tempfile.mkdtemp(prefix="vsnull_")) / f"dem_f{args.aggregate}.tif"
+        write_raster(agg_dem, np.where(valid, dem, -99999.0).astype(np.float32),
+                     Raster(dem, gt, dem_raster.projection, -99999.0), nodata=-99999.0)
         backend: ViewshedBackend = GrassViewshed(
-            dem_path=args.dem, gt=gt, shape=dem.shape,
+            dem_path=agg_dem, gt=gt, shape=dem.shape,
             observer_height=args.observer_height,
             target_height=args.target_height,
             max_distance=args.max_distance,
             grass_binary=args.grass_binary,
+            grass_python=args.grass_python,
         )
     else:
         backend = InternalViewshed(

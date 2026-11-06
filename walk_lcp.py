@@ -29,6 +29,20 @@ Algorithm
    input/output file hashes, timestamp) to support exact verification
    by reviewers.
 
+Impassable terrain is coded as NoData in the DEM. For the revised
+analysis the sea and harbour basins are set to NoData
+(``dem 04 Low Pass Filter_water_nodata.tif``), so no route can cross
+water. Start/stop pairs that are not connected over walkable cells are
+listed in ``<output stem>_unreachable.csv`` rather than silently dropped,
+and route identifiers are fixed by node position
+(``route_id = start_index * n_stops + stop_index + 1``) so they are stable
+whether or not some pairs are unreachable.
+
+A node placed on a NoData cell (e.g. a harbour node on the waterline) can
+be moved to the nearest walkable cell with ``--snap-to-valid <metres>``;
+every snap is logged and recorded in the manifest. Without the flag such
+a node is reported and all its pairs are listed as unreachable.
+
 Tobler's hiking function
 ------------------------
 Walking speed (km/h) as a function of slope S (rise/run):
@@ -81,7 +95,7 @@ import numpy as np
 # (tobler_speed, world_to_pixel, pixel_to_world, dijkstra_from_start,
 # reconstruct_path) can be imported and tested with just numpy installed.
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 _LOG = logging.getLogger("walk_lcp")
 
 
@@ -267,9 +281,12 @@ class PointRecord:
     y: float
     row: int
     col: int
+    name: str = ""
+    snapped_m: float = 0.0
 
 
-def read_points(shp_path: Path, gt: Sequence[float]) -> list[PointRecord]:
+def read_points(shp_path: Path, gt: Sequence[float],
+                name_field: str | None = None) -> list[PointRecord]:
     """Read a point layer (shapefile / GeoPackage) and resolve pixel indices."""
     import geopandas as gpd  # lazy import
 
@@ -282,8 +299,49 @@ def read_points(shp_path: Path, gt: Sequence[float]) -> list[PointRecord]:
     for idx, row in gdf.iterrows():
         x, y = float(row.geometry.x), float(row.geometry.y)
         r, c = world_to_pixel(gt, x, y)
-        pts.append(PointRecord(fid=int(idx), x=x, y=y, row=r, col=c))
+        name = str(row[name_field]) if name_field and name_field in gdf.columns else ""
+        pts.append(PointRecord(fid=int(idx), x=x, y=y, row=r, col=c, name=name))
     return pts
+
+
+def snap_to_valid(
+    pts: list[PointRecord],
+    dem: np.ndarray,
+    gt: Sequence[float],
+    nodata: float | None,
+    max_m: float,
+) -> list[dict]:
+    """Move points that sit on NoData to the nearest valid cell within ``max_m``.
+
+    Points are changed in place. Returns one record per point that was
+    moved (or could not be moved), for the log and the manifest.
+    """
+    px_w, px_h = gt[1], abs(gt[5])
+    rad_r, rad_c = int(math.ceil(max_m / px_h)), int(math.ceil(max_m / px_w))
+    nrows, ncols = dem.shape
+    log = []
+    for p in pts:
+        inside = 0 <= p.row < nrows and 0 <= p.col < ncols
+        if inside and not (nodata is not None and dem[p.row, p.col] == nodata):
+            continue
+        r0, r1 = max(0, p.row - rad_r), min(nrows, p.row + rad_r + 1)
+        c0, c1 = max(0, p.col - rad_c), min(ncols, p.col + rad_c + 1)
+        win = dem[r0:r1, c0:c1]
+        ok = np.ones(win.shape, bool) if nodata is None else (win != nodata)
+        rr, cc = np.nonzero(ok)
+        entry = {"fid": p.fid, "name": p.name, "x": p.x, "y": p.y}
+        if rr.size:
+            d = np.hypot((rr + r0 - p.row) * px_h, (cc + c0 - p.col) * px_w)
+            k = int(np.argmin(d))
+            if d[k] <= max_m:
+                p.row, p.col = int(rr[k] + r0), int(cc[k] + c0)
+                p.snapped_m = float(d[k])
+                entry.update(moved_m=p.snapped_m, new_row=p.row, new_col=p.col)
+                log.append(entry)
+                continue
+        entry.update(moved_m=None, note=f"no valid cell within {max_m} m")
+        log.append(entry)
+    return log
 
 
 def write_routes(
@@ -301,10 +359,14 @@ def write_routes(
         if not r["path_rc"]:
             continue
         coords = [pixel_to_world(gt, rr, cc) for (rr, cc) in r["path_rc"]]
+        if len(coords) == 1:                 # degenerate route: start == stop cell
+            coords = coords * 2
         records.append({
             "route_id": int(r["route_id"]),
             "start_id": int(r["start_id"]),
             "stop_id":  int(r["stop_id"]),
+            **({"start_name": r["start_name"], "stop_name": r["stop_name"]}
+               if r.get("start_name") or r.get("stop_name") else {}),
             "dist_m":   float(r["dist_m"]),
             "time_s":   float(r["time_s"]),
             "time_min": float(r["time_s"] / 60.0),
@@ -406,6 +468,34 @@ def write_manifest(
 # Driver
 # =============================================================================
 
+def _solve_start(job: tuple) -> tuple[int, list, Path | None]:
+    """Dijkstra from one start; returns (start index, per-stop results, cost raster).
+
+    Module-level so it can run in a worker process. Each stop result is
+    (time_s or None, path_rc or None, dist_m or None).
+    """
+    from osgeo import gdal  # lazy import
+
+    dem_path, s_idx, start_rc, stop_rcs, cost_path = job
+    ds = gdal.Open(str(dem_path))
+    band = ds.GetRasterBand(1)
+    dem = band.ReadAsArray().astype(np.float32)
+    nodata = band.GetNoDataValue()
+    gt = ds.GetGeoTransform()
+    cost, prev = dijkstra_from_start(dem, gt, start_rc, nodata)
+    if cost_path is not None:
+        write_cost_raster(cost, ds, cost_path)
+    out = []
+    for rc in stop_rcs:
+        t = float(cost[rc])
+        if not math.isfinite(t):
+            out.append((None, None, None))
+            continue
+        path_rc, dist_m = reconstruct_path(prev, gt, start_rc, rc)
+        out.append((t, path_rc, dist_m))
+    return s_idx, out, cost_path
+
+
 def compute_all_lcps(
     dem_path: Path,
     start_path: Path,
@@ -413,12 +503,17 @@ def compute_all_lcps(
     output_path: Path,
     export_cumulative: bool = False,
     manifest_path: Path | None = None,
+    name_field: str | None = None,
+    snap_m: float | None = None,
+    workers: int = 1,
 ) -> int:
     """End-to-end run: read inputs, compute LCPs, write outputs and manifest.
 
     Returns the number of routes written.
     """
     # Lazy imports — keep the math layer pure-numpy.
+    import csv
+
     import geopandas as gpd
     from osgeo import gdal
 
@@ -434,48 +529,86 @@ def compute_all_lcps(
     crs = gpd.read_file(start_path).crs   # use start-layer CRS
 
     _LOG.info("Reading start points: %s", start_path)
-    starts = read_points(start_path, gt)
+    starts = read_points(start_path, gt, name_field)
     _LOG.info("  %d start points", len(starts))
 
     _LOG.info("Reading stop points: %s", stop_path)
-    stops = read_points(stop_path, gt)
+    stops = read_points(stop_path, gt, name_field)
     _LOG.info("  %d stop points", len(stops))
 
-    routes: list[dict] = []
-    extra_outputs: list[Path] = []
-    route_id = 1
+    snaps: list[dict] = []
+    if snap_m:
+        for layer, pts in (("start", starts), ("stop", stops)):
+            for entry in snap_to_valid(pts, dem, gt, nodata, snap_m):
+                entry["layer"] = layer
+                snaps.append(entry)
+                _LOG.warning("  %s node fid=%d %r on NoData: %s", layer, entry["fid"],
+                             entry["name"], f"moved {entry['moved_m']:.2f} m"
+                             if entry.get("moved_m") is not None else entry["note"])
 
+    def on_nodata(p: PointRecord) -> bool:
+        inside = 0 <= p.row < dem.shape[0] and 0 <= p.col < dem.shape[1]
+        return not inside or (nodata is not None and dem[p.row, p.col] == nodata)
+
+    for p in starts + stops:
+        if on_nodata(p):
+            _LOG.warning("  node fid=%d %r lies on NoData; its pairs will be unreachable",
+                         p.fid, p.name)
+
+    routes: list[dict] = []
+    unreachable: list[dict] = []
+    extra_outputs: list[Path] = []
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    for s_idx, s in enumerate(starts, start=1):
-        _LOG.info("Dijkstra from start fid=%d (%d/%d)", s.fid, s_idx, len(starts))
-        cost, prev = dijkstra_from_start(dem, gt, (s.row, s.col), nodata)
+    jobs = []
+    for s_idx, s in enumerate(starts):
+        cost_path = (output_path.parent / f"cum_walk_time_start_{s.fid}.tif"
+                     if export_cumulative else None)
+        jobs.append((dem_path, s_idx, (s.row, s.col),
+                     [(t.row, t.col) for t in stops], cost_path))
+    if workers > 1:
+        from concurrent.futures import ProcessPoolExecutor
+        _LOG.info("Running Dijkstra from %d starts on %d workers", len(jobs), workers)
+        with ProcessPoolExecutor(max_workers=workers) as ex:
+            solved = list(ex.map(_solve_start, jobs))
+    else:
+        solved = []
+        for job in jobs:
+            _LOG.info("Dijkstra from start fid=%d (%d/%d)",
+                      starts[job[1]].fid, job[1] + 1, len(starts))
+            solved.append(_solve_start(job))
 
-        if export_cumulative:
-            out_cost = output_path.parent / f"cum_walk_time_start_{s.fid}.tif"
-            write_cost_raster(cost, ds, out_cost)
-            extra_outputs.append(out_cost)
-            _LOG.info("  wrote cumulative time raster: %s", out_cost)
-
-        for t in stops:
-            time_sec = float(cost[t.row, t.col])
-            if not math.isfinite(time_sec):
+    for s_idx, per_stop, cost_path in sorted(solved, key=lambda r: r[0]):
+        s = starts[s_idx]
+        if cost_path is not None:
+            extra_outputs.append(cost_path)
+        for t_idx, (t, (time_sec, path_rc, dist_m)) in enumerate(zip(stops, per_stop)):
+            route_id = s_idx * len(stops) + t_idx + 1
+            if time_sec is None or path_rc is None:
                 _LOG.warning("  stop fid=%d unreachable from start fid=%d", t.fid, s.fid)
-                continue
-            path_rc, dist_m = reconstruct_path(prev, gt, (s.row, s.col), (t.row, t.col))
-            if path_rc is None:
+                unreachable.append({"route_id": route_id, "start_id": s.fid, "stop_id": t.fid,
+                                    "start_name": s.name, "stop_name": t.name})
                 continue
             routes.append({
                 "route_id": route_id,
                 "start_id": s.fid,
                 "stop_id":  t.fid,
+                "start_name": s.name,
+                "stop_name": t.name,
                 "path_rc":  path_rc,
                 "dist_m":   dist_m,
                 "time_s":   time_sec,
             })
             _LOG.info("  route start=%d stop=%d dist=%.1f m time=%.1f min",
                       s.fid, t.fid, dist_m, time_sec / 60.0)
-            route_id += 1
+
+    unreachable_path = output_path.with_name(output_path.stem + "_unreachable.csv")
+    with open(unreachable_path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=["route_id", "start_id", "stop_id",
+                                          "start_name", "stop_name"])
+        w.writeheader()
+        w.writerows(unreachable)
+    _LOG.info("%d pair(s) unreachable -> %s", len(unreachable), unreachable_path)
 
     if not routes:
         _LOG.warning("No routes computed (no reachable start-stop pairs).")
@@ -487,12 +620,18 @@ def compute_all_lcps(
         write_manifest(
             manifest_path,
             inputs={"dem": dem_path, "start": start_path, "stop": stop_path},
-            outputs=[output_path, *extra_outputs],
+            outputs=[output_path, unreachable_path, *extra_outputs],
             parameters={
                 "export_cumulative": export_cumulative,
                 "tobler_function": "v_kmh = 6 * exp(-3.5 * |S + 0.05|)",
                 "connectivity": 8,
                 "minimum_speed_m_per_s": 0.01,
+                "impassable": "DEM NoData cells",
+                "snap_to_valid_m": snap_m,
+                "snapped_nodes": snaps,
+                "n_pairs": len(starts) * len(stops),
+                "n_routes": len(routes),
+                "n_unreachable": len(unreachable),
             },
         )
 
@@ -525,6 +664,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--manifest", type=Path, default=None,
                    help="Write a JSON run manifest (versions, parameters, "
                         "file hashes) to this path.")
+    p.add_argument("--name-field", default=None,
+                   help="Point attribute copied to start_name / stop_name "
+                        "(e.g. 'location' for the Parion node layers).")
+    p.add_argument("--snap-to-valid", type=float, default=None, metavar="METRES",
+                   help="Move nodes that sit on NoData to the nearest valid cell "
+                        "within this distance (logged and recorded in the manifest).")
+    p.add_argument("--workers", type=int, default=1,
+                   help="Run the per-start Dijkstra searches in this many processes.")
     p.add_argument("--log-level", default="INFO",
                    choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                    help="Console log level.")
@@ -546,6 +693,9 @@ def main(argv: list[str] | None = None) -> int:
         output_path=args.output,
         export_cumulative=args.export_cumulative,
         manifest_path=args.manifest,
+        name_field=args.name_field,
+        snap_m=args.snap_to_valid,
+        workers=args.workers,
     )
     _LOG.info("Done. %d route(s) written.", n)
     return 0

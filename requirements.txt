@@ -1,20 +1,11 @@
-# Walk-LCP — Python dependencies for the standalone version (walk_lcp.py)
+# Walk-LCP - pip dependencies
 #
-# Versions below are those used to produce the results in the manuscript.
-# Adjust freely; the API surface used here is stable across recent minor
-# versions. If you bump a major version, re-run test_walk_lcp.py to
-# confirm the numerical results have not changed.
+# Enough for the unit tests and the two demo notebooks. GDAL and GRASS GIS are not
+# reliably installed by pip: for the full GIS runs and reproduce_parion_results.ipynb
+# use environment.yml, or the Python that ships with QGIS 3.44.9, which produced the
+# deposited results (exact versions are recorded in each run manifest).
 
-numpy==1.26.4
-gdal==3.8.4
-geopandas==0.14.3
-shapely==2.0.3
-fiona==1.9.6
-pyproj==3.6.1
-
-# Demo notebook (demo_test_run.ipynb)
-matplotlib==3.8.3
-jupyter==1.0.0
-
-# Development / verification
-pytest==8.1.1
+numpy>=1.26
+matplotlib>=3.8
+jupyter>=1.0
+pytest>=8.1

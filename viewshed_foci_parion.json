@@ -1,19 +1,19 @@
 {
   "_README": [
-    "Configuration for viewshed_null.py — the eleven Parion foci and the seven",
-    "contextually related pairs tested in the manuscript.",
+    "Configuration for viewshed_null.py — the eleven Parion viewshed foci and the",
+    "seven contextually related pairs tested in the manuscript (Table 1, Table S5).",
     "",
-    "BEFORE RUNNING: replace every \"FILL\" with the real map coordinate, in the",
-    "same projected CRS as the DEM (TUREF / TM27, EPSG:5253 for the W25 dataset).",
-    "The script refuses to run while any placeholder remains.",
+    "Coordinates are in TUREF / TM27 (EPSG:5253), metres.",
     "",
-    "The eight foci named below are the ones the manuscript names explicitly.",
-    "Three of the eleven are not named in the running text — add them here with",
-    "the same names used in the Figure 8 panel labels, so that the output table",
-    "and the figure agree.",
+    "x / y are the ANALYSIS coordinates used for every result. They were recovered",
+    "by searching for the r.viewshed observer whose output best matches each viewshed",
+    "raster of the first submission (Jaccard at 0.4 m given per focus); those rasters",
+    "used superseded parameters and are no longer deposited. nominal_x / nominal_y are",
+    "the manually placed points in 03_gis_inputs/viewshed_foci.shp; moved_m is the",
+    "distance between the two. See 04_results/_superseded/Null-model_v1_sea_included/recovered_observers.json.",
     "",
-    "If you keep pre-computed GRASS viewsheds in --observed-dir, each file must",
-    "be named <name>.tif using exactly the \"name\" values below."
+    "\"name\" equals the raster file name (<name>_land.tif) in 04_results/Viewshed_landmasked_0.4m_rerun/ and the 'name'",
+    "attribute of viewshed_foci.shp."
   ],
 
   "crs": "EPSG:5253 (TUREF / TM27)",
@@ -21,6 +21,7 @@
   "viewshed_parameters": {
     "observer_height_m": 1.7,
     "target_height_m": 0.0,
+    "line_of_sight_target_height_m": 1.7,
     "max_distance_m": 3000.0,
     "mode": "binary (r.viewshed -b)",
     "note": "Uniform pedestrian baseline. No allowance is made for tower superstructures or for the original height of the tumulus mound, so elevated foci are conservative lower bounds."
@@ -31,27 +32,31 @@
     "elevation_tolerance_m": 5.0,
     "distance_tolerance_fraction": 0.10,
     "analysis_grid_m": 2.0,
-    "note": "The 2 m analysis grid is the effective resolution of the low-pass filtered surface; the nominal 0.4 m grid is oversampled for this purpose."
+    "analysis_region": "land only: valid DEM cells outside the sea/harbour mask (02_processed/water_mask_0.4m.tif)",
+    "note": "The 2 m analysis grid is chosen on computational grounds (about 1 s per viewshed against 23-46 s at 0.4 m). Three pairs are re-tested at 0.4 m on the same mask and pool."
   },
 
   "foci": [
-    { "name": "circular_tower",       "x": "FILL", "y": "FILL", "label": "Circular tower",       "elevated": true  },
-    { "name": "tas_kule",             "x": "FILL", "y": "FILL", "label": "Taş Kule",             "elevated": true  },
-    { "name": "acropolis_tower",      "x": "FILL", "y": "FILL", "label": "Acropolis tower",      "elevated": true  },
-    { "name": "tavsandere_tumulus",   "x": "FILL", "y": "FILL", "label": "Tavşandere tumulus",   "elevated": true  },
-    { "name": "southern_gate",        "x": "FILL", "y": "FILL", "label": "Southern gate",        "elevated": false },
-    { "name": "southeastern_gate",    "x": "FILL", "y": "FILL", "label": "Southeastern gate",    "elevated": false },
-    { "name": "eastern_gate",         "x": "FILL", "y": "FILL", "label": "Eastern gate",         "elevated": false },
-    { "name": "eastern_necropolis",   "x": "FILL", "y": "FILL", "label": "Eastern Necropolis",   "elevated": false }
+    { "name": "CircularTower", "label": "Circular tower",       "elevated": true,  "x": 506663.001, "y": 4476138.649, "nominal_x": 506701.001, "nominal_y": 4475960.649, "moved_m": 182.0, "jaccard_vs_published_04m": 0.937 },
+    { "name": "TasKule",       "label": "Taş Kule",             "elevated": true,  "x": 505738.484, "y": 4476963.099, "nominal_x": 505739.484, "nominal_y": 4476971.099, "moved_m": 8.1,   "jaccard_vs_published_04m": 0.965 },
+    { "name": "AcroKule",      "label": "Acropolis tower",      "elevated": true,  "x": 505302.819, "y": 4477132.685, "nominal_x": 505298.819, "nominal_y": 4477132.685, "moved_m": 4.0,   "jaccard_vs_published_04m": 0.965 },
+    { "name": "TavsanTum",     "label": "Tavşandere tumulus",   "elevated": true,  "x": 506084.753, "y": 4475724.141, "nominal_x": 506088.753, "nominal_y": 4475710.141, "moved_m": 14.6,  "jaccard_vs_published_04m": 0.892 },
+    { "name": "SouthGate",     "label": "Southern gate",        "elevated": false, "x": 505814.353, "y": 4475952.590, "nominal_x": 505828.353, "nominal_y": 4475980.590, "moved_m": 31.3,  "jaccard_vs_published_04m": 0.947 },
+    { "name": "SEGate",        "label": "Southeastern gate",    "elevated": false, "x": 506118.059, "y": 4475986.476, "nominal_x": 506124.059, "nominal_y": 4476014.476, "moved_m": 28.6,  "jaccard_vs_published_04m": 0.930 },
+    { "name": "EastGate",      "label": "Eastern gate",         "elevated": false, "x": 506618.867, "y": 4476644.185, "nominal_x": 506614.867, "nominal_y": 4476668.185, "moved_m": 24.3,  "jaccard_vs_published_04m": 0.920 },
+    { "name": "EastNecro",     "label": "Eastern Necropolis",   "elevated": false, "x": 506431.550, "y": 4476199.889, "nominal_x": 506435.550, "nominal_y": 4476227.889, "moved_m": 28.3,  "jaccard_vs_published_04m": 0.952 },
+    { "name": "NorthNecro",    "label": "Northern Necropolis",  "elevated": false, "x": 506470.069, "y": 4477133.315, "nominal_x": 506459.069, "nominal_y": 4477139.315, "moved_m": 12.5,  "jaccard_vs_published_04m": 0.767 },
+    { "name": "SouthNecro",    "label": "Southern Necropolis",  "elevated": false, "x": 505952.794, "y": 4475765.279, "nominal_x": 505942.794, "nominal_y": 4475779.279, "moved_m": 17.2,  "jaccard_vs_published_04m": 0.926 },
+    { "name": "WestGate",      "label": "Western gate",         "elevated": false, "x": 505658.341, "y": 4476710.593, "nominal_x": 505684.341, "nominal_y": 4476714.593, "moved_m": 26.3,  "jaccard_vs_published_04m": 0.720 }
   ],
 
   "pairs": [
-    { "a": "circular_tower",     "b": "tavsandere_tumulus", "panel": "a", "relationship": "tower / tumulus intervisibility" },
-    { "a": "southern_gate",      "b": "southeastern_gate",  "panel": "b", "relationship": "gate / gate" },
-    { "a": "tavsandere_tumulus", "b": "southern_gate",      "panel": "c", "relationship": "funerary monument / gate" },
-    { "a": "eastern_necropolis", "b": "southeastern_gate",  "panel": "d", "relationship": "necropolis / gate" },
-    { "a": "eastern_necropolis", "b": "eastern_gate",       "panel": "e", "relationship": "necropolis / gate" },
-    { "a": "circular_tower",     "b": "tas_kule",           "panel": "f", "relationship": "tower / tower" },
-    { "a": "tavsandere_tumulus", "b": "eastern_necropolis", "panel": "g", "relationship": "funerary / funerary" }
+    { "a": "TavsanTum",     "b": "SouthGate", "relationship": "funerary monument / gate" },
+    { "a": "SouthGate",     "b": "SEGate",    "relationship": "gate / gate" },
+    { "a": "CircularTower", "b": "TavsanTum", "relationship": "tower / tumulus" },
+    { "a": "EastNecro",     "b": "SEGate",    "relationship": "necropolis / gate" },
+    { "a": "EastNecro",     "b": "EastGate",  "relationship": "necropolis / gate" },
+    { "a": "TavsanTum",     "b": "EastNecro", "relationship": "funerary / funerary" },
+    { "a": "CircularTower", "b": "TasKule",   "relationship": "tower / tower" }
   ]
 }

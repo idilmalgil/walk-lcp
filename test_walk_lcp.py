@@ -166,3 +166,32 @@ class TestReconstruct:
         path, dist = reconstruct_path(prev, self.GT, start, stop)
         assert path is None
         assert dist is None
+
+
+# =============================================================================
+# Snapping nodes that sit on NoData (version 1.1)
+# =============================================================================
+
+def test_snap_moves_node_to_nearest_valid_cell():
+    from walk_lcp import PointRecord, snap_to_valid
+
+    gt = (0.0, 1.0, 0.0, 10.0, 0.0, -1.0)
+    dem = np.zeros((10, 10), dtype=np.float32)
+    dem[:, :5] = -99999.0                       # left half is water / NoData
+    p = PointRecord(fid=0, x=3.5, y=5.5, row=4, col=3)
+    log = snap_to_valid([p], dem, gt, -99999.0, max_m=5.0)
+    assert (p.row, p.col) == (4, 5) and math.isclose(p.snapped_m, 2.0)
+    assert log[0]["moved_m"] == 2.0
+
+
+def test_snap_leaves_valid_nodes_and_reports_hopeless_ones():
+    from walk_lcp import PointRecord, snap_to_valid
+
+    gt = (0.0, 1.0, 0.0, 10.0, 0.0, -1.0)
+    dem = np.full((10, 10), -99999.0, dtype=np.float32)
+    dem[0, 9] = 1.0
+    ok = PointRecord(fid=1, x=9.5, y=9.5, row=0, col=9)
+    far = PointRecord(fid=2, x=0.5, y=0.5, row=9, col=0)
+    log = snap_to_valid([ok, far], dem, gt, -99999.0, max_m=2.0)
+    assert (ok.row, ok.col) == (0, 9)
+    assert len(log) == 1 and log[0]["moved_m"] is None

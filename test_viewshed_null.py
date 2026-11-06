@@ -426,3 +426,130 @@ class TestCoordinates:
             for c in (0, 7, 50):
                 x, y = pixel_to_world(self.GT, r, c)
                 assert world_to_pixel(self.GT, x, y) == (r, c)
+
+
+# =============================================================================
+# Version 2: land-masked pool model
+# =============================================================================
+
+from viewshed_null import (  # noqa: E402
+    AnalysisGrid,
+    empirical_p_lower,
+    empirical_p_two_sided,
+    jaccard,
+    line_of_sight_profile,
+    matched_pool_pairs,
+    packed_stats,
+    run_pool_model,
+    summarise_null,
+)
+
+
+class TestTwoSidedInference:
+    def test_lower_tail_mirrors_upper(self):
+        null = np.arange(1, 1000, dtype=float)          # 1 .. 999
+        assert math.isclose(empirical_p_lower(0.0, null), 1 / 1000)
+        assert math.isclose(empirical_p(1000.0, null), 1 / 1000)
+
+    def test_two_sided_doubles_the_smaller_tail(self):
+        null = np.arange(1, 1000, dtype=float)
+        assert math.isclose(empirical_p_two_sided(1000.0, null), 2 / 1000)
+        assert math.isclose(empirical_p_two_sided(0.0, null), 2 / 1000)
+
+    def test_two_sided_is_capped_at_one(self):
+        null = np.full(999, 5.0)
+        assert empirical_p_two_sided(5.0, null) == 1.0
+
+    def test_summary_reports_exceedance(self):
+        null = np.linspace(0, 10, 999)
+        s = summarise_null(11.0, null)
+        assert s["n_null_ge_observed"] == 0 and s["beyond_all_draws"] == "above"
+        assert math.isclose(s["p_upper"], 0.001) and math.isclose(s["p_two_sided"], 0.002)
+        s = summarise_null(-1.0, null)
+        assert s["beyond_all_draws"] == "below"
+
+
+class TestJaccardAndPacked:
+    def test_jaccard_basic(self):
+        a = np.array([1, 1, 0, 0], dtype=bool)
+        b = np.array([0, 1, 1, 0], dtype=bool)
+        assert math.isclose(jaccard(a, b), 1 / 3)
+        assert jaccard(np.zeros(4, bool), np.zeros(4, bool)) == 0.0
+
+    def test_packed_stats_match_boolean_stats(self):
+        rng = np.random.default_rng(5)
+        a = rng.random(1003) > 0.6
+        b = rng.random(1003) > 0.4
+        s = packed_stats(np.packbits(a), np.packbits(b), cell_ha=0.0004)
+        assert math.isclose(s["overlap_ha"], intersection_ha(a, b, 0.0004))
+        assert math.isclose(s["union_ha"], union_ha(a, b, 0.0004))
+        assert math.isclose(s["overlap_pct_smaller"], pct_of_smaller(a, b))
+        assert math.isclose(s["jaccard"], jaccard(a, b))
+
+
+class TestPoolMatching:
+    def test_matched_pairs_respect_all_constraints(self):
+        rng = np.random.default_rng(1)
+        xy = rng.random((300, 2)) * 1000
+        z = rng.random(300) * 50
+        pairs = matched_pool_pairs(z, xy, z_a=10.0, z_b=40.0, separation=300.0,
+                                   elev_tol=5.0, dist_tol=0.1)
+        assert pairs.shape[0] > 0
+        for i, j in pairs:
+            assert i != j
+            assert abs(z[i] - 10.0) <= 5.0 and abs(z[j] - 40.0) <= 5.0
+            d = math.hypot(*(xy[i] - xy[j]))
+            assert 270.0 <= d <= 330.0
+
+
+class TestLineOfSight:
+    GT = (0.0, 1.0, 0.0, 100.0, 0.0, -1.0)
+
+    def test_flat_ground_is_visible(self):
+        dem = np.zeros((100, 100))
+        r = line_of_sight_profile(dem, self.GT, (10.5, 50.5), (90.5, 50.5), 1.7, 1.7)
+        assert r["visible"] and math.isclose(r["clearance_m"], 1.7, abs_tol=1e-6)
+
+    def test_wall_blocks_both_directions(self):
+        dem = np.zeros((100, 100))
+        dem[:, 50] = 10.0
+        ab = line_of_sight_profile(dem, self.GT, (10.5, 50.5), (90.5, 50.5), 1.7, 1.7)
+        ba = line_of_sight_profile(dem, self.GT, (90.5, 50.5), (10.5, 50.5), 1.7, 1.7)
+        assert not ab["visible"] and not ba["visible"]
+        # the wall (column 50, x = 50.5) lies 40 m from the observer at x = 10.5
+        assert math.isclose(ab["blocked_at_m"], 40.0, abs_tol=0.5)
+        assert math.isclose(ba["blocked_at_m"], 40.0, abs_tol=0.5)
+
+
+class TestPoolModelEndToEnd:
+    """The whole version-2 driver on a synthetic DEM with a 'sea' band."""
+
+    @staticmethod
+    def _grid(n=70):
+        rng = np.random.default_rng(3)
+        yy, xx = np.mgrid[0:n, 0:n]
+        dem = 30.0 * np.exp(-((xx - 30) ** 2 + (yy - 35) ** 2) / 400.0) + rng.normal(0, 0.2, (n, n))
+        dem[:, :8] = 0.0                                    # flat 'sea' strip
+        valid = np.ones((n, n), bool)
+        land = valid.copy()
+        land[:, :8] = False
+        return AnalysisGrid(dem=dem, valid=valid, land=land,
+                            gt=(0.0, 2.0, 0.0, 2.0 * n, 0.0, -2.0), projection="", factor=1)
+
+    def test_runs_and_never_counts_water(self):
+        from viewshed_null import internal_viewsheds
+
+        grid = self._grid()
+        foci = [Focus("a", 60.5, 70.5), Focus("b", 100.5, 60.5)]
+        compute = lambda pts, tag: internal_viewsheds(grid, pts, max_distance=200.0)  # noqa: E731
+        out = run_pool_model(grid, foci, [("a", "b")], compute, pool_size=300,
+                             n_null=50, elev_tol=8.0, dist_tol=0.3, seed=1)
+        assert {r["statistic"] for r in out["results"]} == {
+            "overlap_ha", "overlap_pct_smaller", "jaccard", "union_ha"}
+        cols = grid.dem.shape[1]
+        assert np.all(out["pool"]["index"] % cols >= 8)       # pool drawn from land only
+        assert all(r["p_holm_two_sided"] >= r["p_two_sided"] for r in out["results"])
+        # the counted viewsheds contain no water cell
+        rows = grid.dem.shape[0]
+        vis = np.unpackbits(out["foci_packed"][0], count=rows * cols).reshape(rows, cols)
+        assert not vis[:, :8].any()

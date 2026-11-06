@@ -51,6 +51,11 @@ from qgis.PyQt.QtCore import QVariant
 # USER PARAMETERS — EDIT THESE BEFORE RUNNING
 # =============================================================================
 
+# For the revised Parion analysis use the water-impassable surface
+# "02_processed/dem 04 Low Pass Filter_water_nodata.tif" (sea and harbour = NoData).
+# This QGIS version does not snap nodes: a node lying on NoData (the Commercial
+# Harbour node sits 1.3-1.7 m inside the waterline) makes its pairs unreachable.
+# Use walk_lcp.py --snap-to-valid 5 to reproduce the published revised routes.
 DEM_PATH   = r"[FILL absolute path to DEM .tif]"
 START_SHP  = r"[FILL absolute path to start points .shp or .gpkg]"
 STOP_SHP   = r"[FILL absolute path to stop points .shp or .gpkg]"

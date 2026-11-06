@@ -1,22 +1,28 @@
-# Walk-LCP — Conda environment for the standalone version (walk_lcp.py)
+# Walk-LCP - Conda environment for the code and notebooks
 #
 # Create with:   conda env create -f environment.yml
 # Activate with: conda activate walk-lcp
 #
-# This is the recommended install route because GDAL binaries from
-# conda-forge are reliable on all major platforms.
+# The deposited results were produced with the Python 3.12 / GDAL 3.12.3 / numpy 2.4.3
+# / scipy 1.17.1 / geopandas 1.1.3 stack of QGIS 3.44.9 and GRASS GIS 8.4.2 (exact
+# versions are recorded in each run manifest). This environment uses the same Python
+# and GDAL series from conda-forge. Tested on Windows on 6 November 2026 for the unit
+# tests, all three notebooks and walk_lcp.py (routes identical to the deposit). For
+# viewshed_null.py on Windows use QGIS 3.44.9: see README.md, section 1.
 
 name: walk-lcp
 channels:
   - conda-forge
 dependencies:
-  - python=3.10
-  - numpy=1.26.4
-  - gdal=3.8.4
-  - geopandas=0.14.3
-  - shapely=2.0.3
-  - fiona=1.9.6
-  - pyproj=3.6.1
-  - matplotlib=3.8.3
-  - jupyter=1.0.0
-  - pytest=8.1.1
+  - python=3.12
+  - numpy
+  - pandas
+  - gdal=3.12
+  - geopandas
+  - shapely
+  - pyproj
+  - scipy
+  - grass>=8.4        # GRASS 8.5 from conda-forge did not start on Windows; see README.md
+  - matplotlib
+  - jupyter
+  - pytest
