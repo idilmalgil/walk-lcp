@@ -9,8 +9,10 @@
     "by searching for the r.viewshed observer whose output best matches each viewshed",
     "raster of the first submission (Jaccard at 0.4 m given per focus); those rasters",
     "used superseded parameters and are no longer deposited. nominal_x / nominal_y are",
-    "the manually placed points in 03_gis_inputs/viewshed_foci.shp; moved_m is the",
-    "distance between the two. See 04_results/_superseded/Null-model_v1_sea_included/recovered_observers.json.",
+    "the manually placed points of the first submission; moved_m is the distance between",
+    "the two. 03_gis_inputs/viewshed_foci.shp holds the same analysis positions (x / y) as",
+    "points, with nominal_x, nominal_y and moved_m kept as attributes.",
+    "See 04_results/_superseded/Null-model_v1_sea_included/recovered_observers.json.",
     "",
     "\"name\" equals the raster file name (<name>_land.tif) in 04_results/Viewshed_landmasked_0.4m_rerun/ and the 'name'",
     "attribute of viewshed_foci.shp."

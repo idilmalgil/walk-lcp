@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use this software, please cite both the manuscript and this software as below."
 
 title: "Walk-LCP: Least-cost walking paths over a DEM with Tobler's hiking function"
-version: 2.0.1
-date-released: 2026-11-06
+version: 2.0.2
+date-released: 2026-11-24
 license: MIT
 type: software
 repository-code: "https://github.com/idilmalgil/walk-lcp"

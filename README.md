@@ -19,6 +19,10 @@ viewsheds nor sampled by the null model. The null model reports two-sided
 p-values with Holm correction, a symmetric Jaccard index, exceedance counts,
 direct line of sight in both directions, and a 0.4 m resolution check.
 
+**Release 2.0.2 (November 2026)** changes documentation only: the note in
+`viewshed_foci_parion.json` now states that `03_gis_inputs/viewshed_foci.shp`
+in the dataset holds the same analysis positions. No code or result changes.
+
 ## Contents
 
 ```
