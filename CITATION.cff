@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use this software, please cite both the manuscript and this software as below."
 
 title: "Walk-LCP: Least-cost walking paths over a DEM with Tobler's hiking function"
-version: 2.0.2
-date-released: 2026-11-26
+version: 2.0.3
+date-released: 2026-11-28
 license: MIT
 type: software
 repository-code: "https://github.com/idilmalgil/walk-lcp"
@@ -48,7 +48,7 @@ preferred-citation:
     - family-names: Malgil
       given-names: Idil
       orcid: "https://orcid.org/0000-0002-4406-3295"
-    - family-names: Tugrul
+    - family-names: Tuğrul
       given-names: Sadık
       orcid: "https://orcid.org/0000-0001-7737-7728"
   year: 2026

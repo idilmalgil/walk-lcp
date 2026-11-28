@@ -1,4 +1,4 @@
-"""Assemble the final, single results tables for Table 1, Table S5, Table S3 and the
+"""Assemble the final, single results tables for Table 1, Table S8, Table S7 and the
 resolution check from the land-masked runs."""
 # Run from the folder that holds W25_data_archive/ and walk-lcp-main/.
 # Results are written to --outdir (default analysis_out/), so the deposit is not overwritten.
@@ -91,7 +91,7 @@ for p in pairs:
         "v2_sea_included_p_two_sided": fmt(f(stat(S2, p, "overlap_pct_smaller"), "p_two_sided")),
     })
 
-# ---------------- Table S5 ----------------
+# ---------------- Table S8 ----------------
 s5 = []
 for p in pairs:
     u = stat(L2, p, "union_ha")
@@ -143,7 +143,7 @@ if os.path.exists(os.path.join(R["land04"], "results_table.csv")):
                 "LOS_a_to_b/b_to_a": "/".join("yes" if x["profile_visible"] == "True" else "no" for x in (ab, ba)),
             })
 
-# ---------------- Foci (Table S3): final 0.4 m viewsheds and the 2 m run ----------------
+# ---------------- Foci (Table S7): final 0.4 m viewsheds and the 2 m run ----------------
 tr = {r["focus"]: r for r in csv.DictReader(
     open(os.path.join(R["land2"], "viewshed_truncation.csv"), encoding="utf-8"))}
 cfg = {c["name"]: c for c in json.load(open("walk-lcp-main/viewshed_foci_parion.json", encoding="utf-8"))["foci"]}

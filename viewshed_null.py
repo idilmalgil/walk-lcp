@@ -6,13 +6,13 @@ viewshed_null.py — Pairwise viewshed overlap against a matched null model.
 Companion to ``walk_lcp.py`` in the reproducibility package accompanying the
 manuscript. Where ``walk_lcp.py`` produces the least-cost routes, this module
 produces the viewshed inference results reported in the manuscript
-(Table 1 and Table S5):
+(Table 1 and Table S8):
 
 * the **overlap test** — the shared (intersection) visible ground, as a
   percentage of the smaller of the two viewsheds and as a symmetric
   Jaccard index (intersection / union);
 * the **union test** — the combined (union) visible area of a pair of foci,
-  in hectares (Table S5);
+  in hectares (Table S8);
 * direct **line of sight** between the two foci of every pair, in both
   directions.
 

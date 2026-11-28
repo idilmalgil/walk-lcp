@@ -5,7 +5,7 @@
 
 This repository is the reproducibility package for the analyses in the article
 "LiDAR-Integrated GIS Modelling of Urban Thresholds and Extramural Funerary
-Landscapes at Parion" by Malgil and Tugrul (under review, *Archaeological Prospection*).
+Landscapes at Parion" by Malgil and Tuğrul (under review, *Archaeological Prospection*).
 
 It computes least-cost walking paths (LCPs) and travel times across a digital
 elevation model (DEM) with Dijkstra's algorithm and Tobler's hiking function, and
@@ -22,6 +22,15 @@ direct line of sight in both directions, and a 0.4 m resolution check.
 **Release 2.0.2 (November 2026)** changes documentation only: the note in
 `viewshed_foci_parion.json` now states that `03_gis_inputs/viewshed_foci.shp`
 in the dataset holds the same analysis positions. No code or result changes.
+
+**Release 2.0.3 (November 2026)** changes documentation only: the
+Supporting Information of the revised article is renumbered so that it is
+cited in order, and the README, the notebook labels and the comments now use
+the new numbers. Supplementary Tables: S3 is now S7, S4 is S6, S5 is S8,
+S6 is S3, S7 is S4 and S8 is S5. Supplementary Figures: S11 is now S3, and
+S3–S10 are now S4–S11. File names in the data deposit keep the old numbers
+(for example `FINAL_TableS3_foci_visible_land.csv` holds Table S7,
+`FINAL_TableS5_union_landmasked.csv` Table S8). No code or result changes.
 
 ## Contents
 
@@ -48,19 +57,19 @@ walk-lcp-main/
 | Analysis | Script | Manuscript output |
 |-|-|-|
 | Least-cost walking paths, water impassable | `walk_lcp.py` | Figure 6 |
-| Pairwise viewshed overlap vs. matched null model | `viewshed_null.py` | Table 1, Figure 10, Figure S7 |
-| Combined (union) visible area vs. matched null model | `viewshed_null.py` | Table S5, Figures S8 and S9 |
-| 0.4 m re-test of three pairs | `viewshed_null.py` | Table S8 |
-| Final 0.4 m viewsheds | `04_results/Viewshed_landmasked_0.4m_rerun/make_viewsheds_0.4m_rerun.py` (data deposit; uses `viewshed_null.py`) | Tables S3 and S4, Figures 9 and S6, 0.4 m column of Table 1 |
+| Pairwise viewshed overlap vs. matched null model | `viewshed_null.py` | Table 1, Figure 10, Figure S8 |
+| Combined (union) visible area vs. matched null model | `viewshed_null.py` | Table S8, Figures S9 and S10 |
+| 0.4 m re-test of three pairs | `viewshed_null.py` | Table S5 |
+| Final 0.4 m viewsheds | `04_results/Viewshed_landmasked_0.4m_rerun/make_viewsheds_0.4m_rerun.py` (data deposit; uses `viewshed_null.py`) | Tables S6 and S7, Figures 9 and S7, 0.4 m column of Table 1 |
 | Land/sea mask | `water_mask_lcp.py` | Methods; input to both analyses |
 | Direct line of sight, all pairs | `analysis_scripts/line_of_sight_all_pairs.py`, `line_of_sight_required_height.py` | Table 1, Section 4.5 |
 | Final results tables | `analysis_scripts/assemble_final_tables.py` | `FINAL_*.csv` in `04_results/Null-model/` |
 | 2 m cost surface and route comparison | `analysis_scripts/make_2m_cost_surface.py`, `compare_routes.py` | Section 3.2.2, Figure 6 |
-| Check of all the above | `reproduce_parion_results.ipynb` | Tables 1, S3, S4, S5, S8; Sections 3.1, 3.2.2, 4.5 |
+| Check of all the above | `reproduce_parion_results.ipynb` | Tables 1 and S5–S8; Sections 3.1, 3.2.2, 4.5 |
 
 ## Quickest check
 
-Open `reproduce_parion_results.ipynb`. It runs in under a minute or two, recomputes the p-values of Tables 1, S5 and S8 from the deposited draws and the areas of Tables S3 and S4 from the final rasters, repeats the line-of-sight tests, checks the routes and stops with an error if any number differs from the manuscript. It makes 73 checks and needs no GRASS. The sections below regenerate the results from the start.
+Open `reproduce_parion_results.ipynb`. It runs in under a minute or two, recomputes the p-values of Tables 1, S5 and S8 from the deposited draws and the areas of Tables S6 and S7 from the final rasters, repeats the line-of-sight tests, checks the routes and stops with an error if any number differs from the manuscript. It makes 73 checks and needs no GRASS. The sections below regenerate the results from the start.
 
 ## Quick start
 
@@ -116,7 +125,7 @@ without `--snap-to-valid` reproduces the 238 routes of the first submission exac
 The nodes at the viewshed foci now use the observer coordinates in
 `viewshed_foci_parion.json`.
 
-### 3. Viewshed null model (land-masked pool model, Table 1 / Table S5)
+### 3. Viewshed null model (land-masked pool model, Table 1 / Table S8)
 
 ```bash
 python walk-lcp-main/viewshed_null.py \
@@ -133,7 +142,7 @@ and run the script with QGIS's Python (`python-qgis-ltr.bat`). Runtime: about 6 
 16 workers.
 
 0.4 m re-test of the three pairs with a result beyond all random pairs, on the same
-mask and the same pool points (about 106 minutes on 16 workers; Table S8):
+mask and the same pool points (about 106 minutes on 16 workers; Table S5):
 
 ```bash
 python walk-lcp-main/viewshed_null.py ... --aggregate 1 \
@@ -233,10 +242,10 @@ three were executed on 6 November 2026 and are saved with their outputs.
 > https://doi.org/10.5281/zenodo.20384339 — CC BY 4.0.
 
 What the deposit reproduces: the LCP routes (Figure 6), the land-masked null model
-results (Table 1, Tables S5 and S8, Figure 10), the final viewsheds (Tables S3 and
-S4) and the water mask, from the archived DEM, orthophoto, DSM, nodes and foci. What
+results (Table 1, Tables S5 and S8, Figure 10), the final viewsheds (Tables S6 and
+S7) and the water mask, from the archived DEM, orthophoto, DSM, nodes and foci. What
 it does not: the full point cloud is not deposited (only six LAS sample tiles from a
-May 2026 reprocessing, and 1 m density grids for Figure S11), so the DEM itself can be
+May 2026 reprocessing, and 1 m density grids for Figure S3), so the DEM itself can be
 inspected but not regenerated from raw data. The observer coordinates were recovered
 from the viewshed rasters of the first submission, which used superseded parameters
 and are no longer deposited (see `viewshed_foci_parion.json`).
